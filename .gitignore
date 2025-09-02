@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.dist/
+build/
+
+# Virtual envs (Poetry keeps outside by default, but just in case)
+.venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env & local
+.env
+.env.*.local
