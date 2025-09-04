@@ -1,15 +1,21 @@
 import os
 import json
 import time
+from pathlib import Path
+
 import streamlit as st
+
 from dotenv import load_dotenv
 from src.office_earnings.llm_client import chat_once, chat_stream
 
 load_dotenv()
 
-st.set_page_config(page_title="OpenAI Chat • office_earnings", page_icon="🤖")
+st.set_page_config(page_title="Earnings", page_icon="💲")
 HISTORY_FILE = ".chat_history.json"
 PREFS_FILE = ".chat_prefs.json"
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 # -------- helpers: persistence --------
@@ -101,6 +107,7 @@ for role, content in st.session_state.history:
 # -------- input + response --------
 prompt = st.chat_input("Ask me something…")
 if prompt:
+    # pull attachments
     # add user message
     st.session_state.history.append(("user", prompt))
     with st.chat_message("user"):

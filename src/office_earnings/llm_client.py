@@ -1,9 +1,10 @@
 from __future__ import annotations
 import os
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Dict, Any, Sequence
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
+from src.office_earnings.helpers import _build_user_content
 
 load_dotenv()
 
@@ -39,15 +40,18 @@ def chat_once(
     temperature: float = 0.2,
     max_tokens: int = 512,
     model: Optional[str] = None,
+    attachments: Optional[Sequence[Dict[str, Any]]] = None,
+    pdf_mode: str = "text",  # "image" or "text"
 ) -> str:
     """One-shot non-streaming call; returns the full text."""
     cfg = _cfg()
     client = _client()
+    content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
     resp = client.chat.completions.create(
         model=model or cfg.model,
         messages=[
             {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": content},
         ],
         temperature=temperature,
         max_tokens=max_tokens,
@@ -62,15 +66,18 @@ def chat_stream(
     temperature: float = 0.2,
     max_tokens: int = 512,
     model: Optional[str] = None,
+    attachments: Optional[Sequence[Dict[str, Any]]] = None,
+    pdf_mode: str = "text",  # "image" or "text"
 ) -> Iterable[str]:
     """Streaming generator yielding text deltas (great for Streamlit)."""
     cfg = _cfg()
     client = _client()
+    content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
     stream = client.chat.completions.create(
         model=model or cfg.model,
         messages=[
             {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": content},
         ],
         temperature=temperature,
         max_tokens=max_tokens,
