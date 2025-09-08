@@ -178,7 +178,9 @@ if "pending_attachments" not in st.session_state:
 
 if "model" not in st.session_state:
     prefs = load_json(PREFS_FILE, default={})
-    st.session_state.model = prefs.get("model", os.getenv("OPENAI_MODEL", "gpt-5-mini"))
+    st.session_state.model = prefs.get(
+        "model", st.secrets.get("OPENAI_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    )
 
 if "system" not in st.session_state:
     st.session_state.system = (

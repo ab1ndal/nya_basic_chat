@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
 from src.nya_basic_chat.helpers import _build_user_content
+import streamlit as st
 
 load_dotenv()
 
@@ -19,9 +20,11 @@ class LLMConfig:
 
 
 def _cfg() -> LLMConfig:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    model = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip()
-    base_url = os.getenv("OPENAI_BASE_URL", "").strip() or None
+    api_key = (st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")).strip()
+    model = (st.secrets.get("OPENAI_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5-mini")).strip()
+    base_url = (
+        st.secrets.get("OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
+    ).strip() or None
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is missing. Put it in your .env")
     if model not in SUPPORTED_MODELS:
