@@ -19,12 +19,17 @@ class LLMConfig:
     base_url: Optional[str] = None
 
 
+def get_secret(key, default=None):
+    try:
+        return st.secrets.get(key) or os.getenv(key) or default
+    except Exception:
+        return os.getenv(key) or default
+
+
 def _cfg() -> LLMConfig:
-    api_key = (st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")).strip()
-    model = (st.secrets.get("OPENAI_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5-mini")).strip()
-    base_url = (
-        st.secrets.get("OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
-    ).strip() or None
+    api_key = get_secret("OPENAI_API_KEY").strip()
+    model = get_secret("OPENAI_MODEL", "gpt-5-mini").strip()
+    base_url = get_secret("OPENAI_BASE_URL", "").strip() or None
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is missing. Put it in your .env")
     if model not in SUPPORTED_MODELS:

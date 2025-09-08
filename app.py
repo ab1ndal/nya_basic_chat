@@ -95,6 +95,13 @@ def preview_file(file_meta: dict):
         st.error(f"Preview failed: {e}")
 
 
+def get_secret(key, default=None):
+    try:
+        return st.secrets.get(key) or os.getenv(key) or default
+    except Exception:
+        return os.getenv(key) or default
+
+
 def _build_call_kwargs(
     prompt, attachments, pdf_mode, system, model, max_completion_tokens, verbosity, reasoning
 ):
@@ -178,9 +185,7 @@ if "pending_attachments" not in st.session_state:
 
 if "model" not in st.session_state:
     prefs = load_json(PREFS_FILE, default={})
-    st.session_state.model = prefs.get(
-        "model", st.secrets.get("OPENAI_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
-    )
+    st.session_state.model = prefs.get("model", get_secret("OPENAI_MODEL", "gpt-5-mini"))
 
 if "system" not in st.session_state:
     st.session_state.system = (
