@@ -19,3 +19,4 @@ Thumbs.db
 # Env & local
 .env
 .env.*.local
+uploads/

@@ -1,12 +1,12 @@
 [project]
-name = "office-earnings"
+name = "nya-basic-chat"
 version = "0.1.0"
-description = "This project parses earnings report in PDFs to meaningful actionable spreadsheets"
+description = "This project exposes the chatbot end to internal teams"
 authors = [
     {name = "ab1ndal",email = "bindal.abhinav@gmail.com"}
 ]
 readme = "README.md"
-packages = [{ include = "office_earnings", from = "src" }]
+packages = [{ include = "nya_basic_chat", from = "src" }]
 dependencies = [
     "python-dotenv (>=1.1.1,<2.0.0)",
     "httpx (>=0.28.1,<0.29.0)",
