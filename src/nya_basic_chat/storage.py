@@ -1,3 +1,4 @@
+# Location: src/nya_basic_chat/storage.py
 import json
 from pathlib import Path
 import time
@@ -7,6 +8,7 @@ import streamlit as st
 
 
 def load_json(path: Path, default=None) -> dict | None:
+    """Load JSON from a file, with optional default."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -15,6 +17,7 @@ def load_json(path: Path, default=None) -> dict | None:
 
 
 def save_json(path: Path, data: dict) -> None:
+    """Save JSON to a file."""
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -23,6 +26,7 @@ def save_json(path: Path, data: dict) -> None:
 
 
 def _safe_name(name: str) -> str:
+    """Safe name for file."""
     return "".join(ch if ch.isalnum() or ch in ("-", "_", ".", " ") else "_" for ch in name)
 
 
@@ -43,14 +47,17 @@ def save_uploads(uploaded_files: list) -> list[dict]:
 
 
 def load_prefs() -> dict:
+    """Load prefs from file."""
     return load_json(PREFS_FILE) or {}
 
 
 def save_prefs(data: dict) -> None:
+    """Save prefs to file."""
     save_json(PREFS_FILE, data)
 
 
 def build_history():
+    """Build history from file."""
     if "history" not in st.session_state:
         saved = load_json(HISTORY_FILE, default={"messages": []})
         # Backward compat: tuples -> dicts
@@ -71,4 +78,5 @@ def build_history():
 
 
 def save_history(data: dict) -> None:
+    """Save history to file."""
     save_json(HISTORY_FILE, data)

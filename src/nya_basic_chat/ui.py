@@ -1,3 +1,5 @@
+# Location: src/nya_basic_chat/ui.py
+
 import re
 from pathlib import Path
 import streamlit as st

@@ -1,7 +1,9 @@
+# Location: src/nya_basic_chat/config.py
 import os
 import streamlit as st
 from pathlib import Path
 
+# Basic paths
 ROOT = Path(__file__).resolve().parents[2]
 HISTORY_FILE = ROOT / ".chat_history.json"
 PREFS_FILE = ROOT / ".chat_prefs.json"
@@ -10,6 +12,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 def get_secret(key, default=None):
+    """Get a secret from Streamlit secrets or environment variables."""
     try:
         return st.secrets.get(key) or os.getenv(key) or default
     except Exception:
