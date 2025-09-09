@@ -1,5 +1,13 @@
 # poetry run streamlit run app.py
+# ruff: noqa: E402
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import os
 import json
 import time
@@ -7,7 +15,7 @@ import time
 import streamlit as st
 
 from dotenv import load_dotenv
-from llm_client import chat_once, chat_stream
+from nya_basic_chat.llm_client import chat_once, chat_stream
 import mimetypes
 import fitz
 from PIL import Image
