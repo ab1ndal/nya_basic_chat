@@ -4,7 +4,7 @@ from typing import Iterable, Optional, Dict, Any, Sequence
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
-from src.nya_basic_chat.helpers import _build_user_content
+from helpers import _build_user_content
 import streamlit as st
 
 load_dotenv()

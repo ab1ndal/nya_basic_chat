@@ -7,7 +7,7 @@ import time
 import streamlit as st
 
 from dotenv import load_dotenv
-from nya_basic_chat.llm_client import chat_once, chat_stream
+from llm_client import chat_once, chat_stream
 import mimetypes
 import fitz
 from PIL import Image
