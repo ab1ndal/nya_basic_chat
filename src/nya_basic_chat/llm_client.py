@@ -1,15 +1,19 @@
 from __future__ import annotations
 import os
-from typing import Iterable, Optional, Dict, Any, Sequence
+import json
+from typing import Iterable, Optional, Dict, Any, Sequence, List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
-from nya_basic_chat.helpers import _build_user_content
+from nya_basic_chat.helpers import _build_user_content, _format_history
+from nya_basic_chat.web import fetch_url, tavily_search
 import streamlit as st
 
 load_dotenv()
 
 SUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
+DEFAULT_HISTORY_TURNS = 4
+DEFAULT_HISTORY_CHARS = 2000
 
 
 @dataclass(frozen=True)
@@ -47,6 +51,76 @@ def _client() -> OpenAI:
     return OpenAI(**kwargs)
 
 
+def _tool_defs() -> List[Dict[str, Any]]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_history",
+                "description": "Return a compact conversation history block for this chat. This is useful for getting the context of the conversation. Use this when the user question is vague",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_turns": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "max_chars": {"type": "integer", "minimum": 1000, "maximum": 20000},
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "web_fetch",
+                "description": "Fetch and clean visible text from a web page for the given URL",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"url": {"type": "string"}},
+                    "required": ["url"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "description": "Search the web and return a short list of results",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "k": {"type": "integer", "minimum": 1, "maximum": 10},
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+    ]
+
+
+def _exec_tool(name: str, arguments_json: str) -> str:
+    try:
+        args = json.loads(arguments_json or "{}")
+    except Exception:
+        args = {}
+    if name == "get_history":
+        max_turns = int(args.get("max_turns") or DEFAULT_HISTORY_TURNS)
+        max_chars = int(args.get("max_chars") or DEFAULT_HISTORY_CHARS)
+        text = _format_history(
+            st.session_state.get("history", []), max_turns=max_turns, max_chars=max_chars
+        )
+        return json.dumps({"title": "Historical Context", "text": text})
+    if name == "web_fetch":
+        url = args.get("url", "")
+        page = fetch_url(url)
+        return json.dumps({"url": page.url, "title": page.title, "text": page.text})
+    if name == "web_search":
+        q = args.get("query", "")
+        k = int(args.get("k") or 5)
+        results = tavily_search(q, k=k, api_key=get_secret("TAVILY_API_KEY"))
+        return json.dumps({"results": results})
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
 def _build_params(
     *,
     model: str,
@@ -56,6 +130,8 @@ def _build_params(
     verbosity: Optional[str] = None,  # "low" | "medium" | "high"
     reasoning_effort: Optional[str] = None,  # "minimal" | "low" | "medium" | "high"
     stop: Optional[Sequence[str]] = None,
+    tools: Optional[Sequence[Dict[str, Any]]] = None,
+    tool_choice: Optional[str] = None,  # "auto" or "none"
 ) -> Dict[str, Any]:
     params: Dict[str, Any] = {
         "model": model,
@@ -69,7 +145,82 @@ def _build_params(
         params["reasoning_effort"] = reasoning_effort
     if stop:
         params["stop"] = list(stop)
+    if tools:
+        params["tools"] = list(tools)
+    if tool_choice:
+        params["tool_choice"] = tool_choice
     return params
+
+
+def _resolve_tools_until_ready(
+    client: OpenAI,
+    model: str,
+    messages: List[Dict[str, Any]],
+    max_completion_tokens: int,
+    verbosity: Optional[str],
+    reasoning_effort: Optional[str],
+    stop: Optional[Sequence[str]],
+    max_loops: int = 4,
+    force_history_first: bool = True,
+) -> List[Dict[str, Any]]:
+    tools = _tool_defs()
+    forced_once = force_history_first
+    for i in range(max_loops):
+        tool_choice = None
+        if i == 0 and forced_once:
+            tool_choice = {"type": "function", "function": {"name": "get_history"}}
+
+        params = _build_params(
+            model=model,
+            messages=messages,
+            stream=False,
+            max_completion_tokens=max_completion_tokens,
+            verbosity=verbosity,
+            reasoning_effort=reasoning_effort,
+            stop=stop,
+            tools=tools,
+            tool_choice=tool_choice or "auto",
+        )
+        resp = client.chat.completions.create(**params)
+        msg = resp.choices[0].message
+        tool_calls = getattr(msg, "tool_calls", None)
+
+        if not tool_calls:
+            if msg.content:
+                messages.append({"role": "assistant", "content": msg.content})
+            return messages
+
+        messages.append(
+            {
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [tc.model_dump() for tc in tool_calls],
+            }
+        )
+
+        for tc in tool_calls:
+            name = tc.function.name
+            arguments_json = tc.function.arguments
+            result_json = _exec_tool(name, arguments_json)
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "name": name,
+                    "content": result_json,
+                }
+            )
+            if name == "get_history":
+                # optional per thread flag to skip forcing on later turns
+                try:
+                    st.session_state["history_fetched"] = True
+                except Exception:
+                    pass
+
+    messages.append(
+        {"role": "assistant", "content": "Tool loop limit reached. Proceeding with available data."}
+    )
+    return messages
 
 
 def chat_once(
@@ -88,17 +239,29 @@ def chat_once(
     cfg = _cfg()
     client = _client()
     content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
-    params = _build_params(
+    messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": content},
+    ]
+    # Resolve any tool requests first
+    messages = _resolve_tools_until_ready(
+        client=client,
         model=model or cfg.model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": content},
-        ],
+        messages=messages,
         max_completion_tokens=max_completion_tokens,
         verbosity=verbosity,
         reasoning_effort=reasoning_effort,
         stop=stop,
+    )
+    # Final non streaming response with tools disabled, to avoid new tool calls
+    params = _build_params(
+        model=model or cfg.model,
+        messages=messages,
         stream=False,
+        max_completion_tokens=max_completion_tokens,
+        verbosity=verbosity,
+        reasoning_effort=reasoning_effort,
+        stop=stop,
     )
     resp = client.chat.completions.create(**params)
     return resp.choices[0].message.content or ""
@@ -120,17 +283,29 @@ def chat_stream(
     cfg = _cfg()
     client = _client()
     content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
-    params = _build_params(
+    messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": content},
+    ]
+    # Resolve tools using non streaming calls first
+    messages = _resolve_tools_until_ready(
+        client=client,
         model=model or cfg.model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": content},
-        ],
+        messages=messages,
         max_completion_tokens=max_completion_tokens,
         verbosity=verbosity,
         reasoning_effort=reasoning_effort,
         stop=stop,
+    )
+    # Final streaming pass with tools disabled, so the stream is pure text
+    params = _build_params(
+        model=model or cfg.model,
+        messages=messages,
         stream=True,
+        max_completion_tokens=max_completion_tokens,
+        verbosity=verbosity,
+        reasoning_effort=reasoning_effort,
+        stop=stop,
     )
     stream = client.chat.completions.create(**params)
     for event in stream:

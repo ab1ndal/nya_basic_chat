@@ -1,3 +1,14 @@
 {
-  "messages": []
+  "messages": [
+    {
+      "role": "user",
+      "content": "What are some 4.0 star + vegetarian friendly places in walking distance to Nabih Youssef Associates office in DTLA? List names, yelp rating and cuisine type for the place. Assume within 10 min walking distance. DO not ask me useless questions. Just give me the list",
+      "attachments": []
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "attachments": []
+    }
+  ]
 }

@@ -134,3 +134,24 @@ def _build_user_content(
             except Exception:
                 parts.append({"type": "text", "text": f"[Attached file: {os.path.basename(path)}]"})
     return parts
+
+
+def _format_history(history, max_turns=8, max_chars=8000) -> str:
+    items = list(history or [])
+    take = items[-max_turns:]
+    lines: list[str] = []
+    total = 0
+    # newest first to improve salience
+    for m in reversed(take):
+        role = "assistant" if m.get("role") == "assistant" else "user"
+        content = str(m.get("content") or "")
+        atts = m.get("attachments") or []
+        if atts:
+            names = ", ".join(a.get("name") or a.get("path", "") for a in atts[:4])
+            content = f"{content}\n\n[Attachments: {names}]"
+        if total + len(content) > max_chars:
+            break
+        lines.append(f"{role.upper()}: {content}")
+        total += len(content)
+    block = "Historical Context\n" + "\n\n".join(lines)
+    return block
