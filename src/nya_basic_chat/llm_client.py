@@ -1,7 +1,9 @@
+# Location: src/nya_basic_chat/llm_client.py
+
 from __future__ import annotations
 import os
 import json
-from typing import Iterable, Optional, Dict, Any, Sequence, List
+from typing import Optional, Dict, Any, Sequence, List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -56,20 +58,6 @@ def _tool_defs() -> List[Dict[str, Any]]:
         {
             "type": "function",
             "function": {
-                "name": "get_history",
-                "description": "Return a compact conversation history block for this chat. This is useful for getting the context of the conversation. Use this when the user question is vague",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "max_turns": {"type": "integer", "minimum": 1, "maximum": 20},
-                        "max_chars": {"type": "integer", "minimum": 1000, "maximum": 20000},
-                    },
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "web_fetch",
                 "description": "Fetch and clean visible text from a web page for the given URL",
                 "parameters": {
@@ -102,13 +90,6 @@ def _exec_tool(name: str, arguments_json: str) -> str:
         args = json.loads(arguments_json or "{}")
     except Exception:
         args = {}
-    if name == "get_history":
-        max_turns = int(args.get("max_turns") or DEFAULT_HISTORY_TURNS)
-        max_chars = int(args.get("max_chars") or DEFAULT_HISTORY_CHARS)
-        text = _format_history(
-            st.session_state.get("history", []), max_turns=max_turns, max_chars=max_chars
-        )
-        return json.dumps({"title": "Historical Context", "text": text})
     if name == "web_fetch":
         url = args.get("url", "")
         page = fetch_url(url)
@@ -161,15 +142,10 @@ def _resolve_tools_until_ready(
     reasoning_effort: Optional[str],
     stop: Optional[Sequence[str]],
     max_loops: int = 4,
-    force_history_first: bool = True,
 ) -> List[Dict[str, Any]]:
     tools = _tool_defs()
-    forced_once = force_history_first
     for i in range(max_loops):
         tool_choice = None
-        if i == 0 and forced_once:
-            tool_choice = {"type": "function", "function": {"name": "get_history"}}
-
         params = _build_params(
             model=model,
             messages=messages,
@@ -210,12 +186,6 @@ def _resolve_tools_until_ready(
                     "content": result_json,
                 }
             )
-            if name == "get_history":
-                # optional per thread flag to skip forcing on later turns
-                try:
-                    st.session_state["history_fetched"] = True
-                except Exception:
-                    pass
 
     messages.append(
         {"role": "assistant", "content": "Tool loop limit reached. Proceeding with available data."}
@@ -223,7 +193,7 @@ def _resolve_tools_until_ready(
     return messages
 
 
-def chat_once(
+def chat(
     prompt: str,
     *,
     system: str = "You are a helpful assistant.",
@@ -234,14 +204,22 @@ def chat_once(
     verbosity: Optional[str] = None,
     reasoning_effort: Optional[str] = None,
     stop: Optional[Sequence[str]] = None,
+    streaming: bool = True,
 ) -> str:
     """One-shot non-streaming call; returns the full text."""
     cfg = _cfg()
     client = _client()
     content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
+
+    history_block = _format_history(
+        st.session_state.get("history", []),
+        max_turns=DEFAULT_HISTORY_TURNS,
+        max_chars=DEFAULT_HISTORY_CHARS,
+    )
+
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": system},
-        {"role": "user", "content": content},
+        {"role": "user", "content": content + [{"type": "text", "text": history_block}]},
     ]
     # Resolve any tool requests first
     messages = _resolve_tools_until_ready(
@@ -257,58 +235,18 @@ def chat_once(
     params = _build_params(
         model=model or cfg.model,
         messages=messages,
-        stream=False,
+        stream=streaming,
         max_completion_tokens=max_completion_tokens,
         verbosity=verbosity,
         reasoning_effort=reasoning_effort,
         stop=stop,
     )
-    resp = client.chat.completions.create(**params)
-    return resp.choices[0].message.content or ""
-
-
-def chat_stream(
-    prompt: str,
-    *,
-    system: str = "You are a helpful assistant.",
-    max_completion_tokens: int = 512,
-    model: Optional[str] = None,
-    attachments: Optional[Sequence[Dict[str, Any]]] = None,
-    pdf_mode: str = "text",  # "image" or "text"
-    verbosity: Optional[str] = None,
-    reasoning_effort: Optional[str] = None,
-    stop: Optional[Sequence[str]] = None,
-) -> Iterable[str]:
-    """Streaming generator yielding text deltas (great for Streamlit)."""
-    cfg = _cfg()
-    client = _client()
-    content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
-    messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": content},
-    ]
-    # Resolve tools using non streaming calls first
-    messages = _resolve_tools_until_ready(
-        client=client,
-        model=model or cfg.model,
-        messages=messages,
-        max_completion_tokens=max_completion_tokens,
-        verbosity=verbosity,
-        reasoning_effort=reasoning_effort,
-        stop=stop,
-    )
-    # Final streaming pass with tools disabled, so the stream is pure text
-    params = _build_params(
-        model=model or cfg.model,
-        messages=messages,
-        stream=True,
-        max_completion_tokens=max_completion_tokens,
-        verbosity=verbosity,
-        reasoning_effort=reasoning_effort,
-        stop=stop,
-    )
-    stream = client.chat.completions.create(**params)
-    for event in stream:
-        delta = event.choices[0].delta.content
-        if delta:
-            yield delta
+    if streaming:
+        resp = client.chat.completions.create(**params)
+        for event in resp:
+            delta = event.choices[0].delta.content
+            if delta:
+                yield delta
+    else:
+        resp = client.chat.completions.create(**params)
+        return resp.choices[0].message.content or ""

@@ -1,5 +1,5 @@
 # Location: src/nya_basic_chat/chat.py
-from nya_basic_chat.llm_client import chat_once as _chat_once, chat_stream as _chat_stream
+from nya_basic_chat.llm_client import chat as _chat
 
 
 def _build_call_kwargs(
@@ -24,9 +24,9 @@ def _build_call_kwargs(
 
 def run_once(**kwargs):
     """Run chat_once with kwargs."""
-    return _chat_once(**kwargs)
+    return _chat(**kwargs, streaming=False)
 
 
 def run_stream(**kwargs):
     """Run chat_stream with kwargs."""
-    return _chat_stream(**kwargs)
+    return _chat(**kwargs, streaming=True)

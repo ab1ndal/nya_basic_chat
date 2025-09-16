@@ -1,9 +1,9 @@
 {
-  "model": "gpt-5-mini",
-  "system": "You are a helpful, concise assistant. Always format math using LaTeX: inline math inside single dollar signs ($...$), and block math inside double dollar signs ($$...$$) or \\[...\\]. Never use plain parentheses for math expressions. Use tools if required. When prior turns are needed, call get_history. Also call this when the query is vague or incomplete. Treat the returned block as context only. Use web_search for discovery and web_fetch to read a specific page.",
+  "model": "gpt-5",
+  "system": "You are a concise assistant. Always format math with LaTeX: inline as $...$, block as $$...$$ or \\[...\\]. Never use plain parentheses for math. Use tools when needed: web_search for discovery, web_fetch to read a page. Use the provided conversation history only as context when prior turns are relevant; do not request or invent additional history.",
   "verbosity": "medium",
   "reasoning_effort": "minimal",
-  "max_completion_tokens": 512,
+  "max_completion_tokens": 640,
   "streaming": true,
   "pdf_mode": "text"
 }

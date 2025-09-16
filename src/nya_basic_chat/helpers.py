@@ -1,9 +1,11 @@
+# Location: src/nya_basic_chat/helpers.py
 import base64
 import io
 import os
 from typing import List, Optional, Sequence, Dict, Any
 from PIL import Image
 import fitz
+import json
 
 # ---------- helpers for multimodal content ----------
 
@@ -137,21 +139,27 @@ def _build_user_content(
 
 
 def _format_history(history, max_turns=8, max_chars=8000) -> str:
+    """
+    Format conversation history into a structured JSON block.
+    - Keeps chronological order (oldest → newest).
+    - Returns a 'latest_turns' list plus an optional 'earlier_summary'.
+    """
     items = list(history or [])
-    take = items[-max_turns:]
-    lines: list[str] = []
+    if not items:
+        return json.dumps({"historical_context": []}, ensure_ascii=False)
+
+    # Always keep the last max_turns
+    recent = items[-max_turns:]
+
+    # Build structured list
+    structured = []
     total = 0
-    # newest first to improve salience
-    for m in reversed(take):
-        role = "assistant" if m.get("role") == "assistant" else "user"
-        content = str(m.get("content") or "")
-        atts = m.get("attachments") or []
-        if atts:
-            names = ", ".join(a.get("name") or a.get("path", "") for a in atts[:4])
-            content = f"{content}\n\n[Attachments: {names}]"
+    for m in recent:
+        content = str(m.get("content") or "").strip()
+        atts = [a.get("name") or a.get("path", "") for a in (m.get("attachments") or [])]
         if total + len(content) > max_chars:
             break
-        lines.append(f"{role.upper()}: {content}")
+        structured.append({"role": m.get("role", "user"), "content": content, "attachments": atts})
         total += len(content)
-    block = "Historical Context\n" + "\n\n".join(lines)
-    return block
+
+    return json.dumps({"historical_context": structured}, ensure_ascii=False)
