@@ -206,7 +206,7 @@ def chat(
     stop: Optional[Sequence[str]] = None,
     streaming: bool = True,
 ) -> str:
-    """One-shot non-streaming call; returns the full text."""
+    """Calls LLM with the given prompt and attachments."""
     cfg = _cfg()
     client = _client()
     content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
@@ -217,6 +217,8 @@ def chat(
         max_chars=DEFAULT_HISTORY_CHARS,
     )
 
+    # System Prompt:
+    system = f"{system}. Format math with LaTeX only when needed: inline as $...$, block as $$...$$ or \[...\]. Never use plain parentheses for math. Use the provided conversation history as context when prior turns are relevant; do not request or invent additional history."
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": system},
         {"role": "user", "content": content + [{"type": "text", "text": history_block}]},
