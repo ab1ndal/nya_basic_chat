@@ -69,7 +69,7 @@ def _build_user_content(
     Build a 'content' array for Chat Completions that mixes text + images.
     attachments: [{"name":..., "path":..., "mime":..., "size":...}, ...]
     """
-    parts: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+    parts: List[Dict[str, Any]] = [{"category": "prompt", "type": "text", "text": prompt}]
 
     if not attachments:
         return parts
@@ -83,32 +83,60 @@ def _build_user_content(
         if mime.startswith("image/"):
             try:
                 data_url = _load_image_as_data_url(path)
-                parts.append({"type": "image_url", "image_url": {"url": data_url}})
+                parts.append(
+                    {
+                        "category": "attachment",
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                        "name": os.path.basename(path),
+                    }
+                )
             except Exception:
                 # fall back: indicate we couldn't load
                 parts.append(
-                    {"type": "text", "text": f"[Image failed to load: {os.path.basename(path)}]"}
+                    {
+                        "category": "attachment",
+                        "type": "text",
+                        "text": f"[Image failed to load: {os.path.basename(path)}]",
+                    }
                 )
         elif mime == "application/pdf" or path.lower().endswith(".pdf"):
             if pdf_mode == "image":
                 try:
                     urls = _pdf_pages_to_data_urls(path)
                     for u in urls:
-                        parts.append({"type": "image_url", "image_url": {"url": u}})
+                        parts.append(
+                            {
+                                "category": "attachment",
+                                "type": "image_url",
+                                "image_url": {"url": u},
+                                "name": os.path.basename(path),
+                            }
+                        )
                 except Exception:
                     parts.append(
-                        {"type": "text", "text": f"[PDF preview failed: {os.path.basename(path)}]"}
+                        {
+                            "category": "attachment",
+                            "type": "text",
+                            "text": f"[PDF preview failed: {os.path.basename(path)}]",
+                        }
                     )
             else:  # text mode
                 try:
                     txt = _extract_pdf_text(path)
                     if txt:
                         parts.append(
-                            {"type": "text", "text": f"[PDF: {os.path.basename(path)}]\n{txt}"}
+                            {
+                                "category": "attachment",
+                                "type": "text",
+                                "text": txt,
+                                "name": os.path.basename(path),
+                            }
                         )
                     else:
                         parts.append(
                             {
+                                "category": "attachment",
                                 "type": "text",
                                 "text": f"[PDF had no extractable text: {os.path.basename(path)}]",
                             }
@@ -116,6 +144,7 @@ def _build_user_content(
                 except Exception:
                     parts.append(
                         {
+                            "category": "attachment",
                             "type": "text",
                             "text": f"[PDF text extraction failed: {os.path.basename(path)}]",
                         }
@@ -127,14 +156,31 @@ def _build_user_content(
                     with open(path, "r", encoding="utf-8", errors="ignore") as f:
                         snippet = f.read(4000)
                     parts.append(
-                        {"type": "text", "text": f"[File: {os.path.basename(path)}]\n{snippet}"}
+                        {
+                            "category": "attachment",
+                            "type": "text",
+                            "text": snippet,
+                            "name": os.path.basename(path),
+                        }
                     )
                 else:
                     parts.append(
-                        {"type": "text", "text": f"[Attached file: {os.path.basename(path)}]"}
+                        {
+                            "category": "attachment",
+                            "type": "text",
+                            "text": f"[Attached file: {os.path.basename(path)}]",
+                            "name": os.path.basename(path),
+                        }
                     )
             except Exception:
-                parts.append({"type": "text", "text": f"[Attached file: {os.path.basename(path)}]"})
+                parts.append(
+                    {
+                        "category": "attachment",
+                        "type": "text",
+                        "text": f"[Attached file: {os.path.basename(path)}]",
+                        "name": os.path.basename(path),
+                    }
+                )
     return parts
 
 
@@ -151,15 +197,4 @@ def _format_history(history, max_turns=8, max_chars=8000) -> str:
     # Always keep the last max_turns
     recent = items[-max_turns:]
 
-    # Build structured list
-    structured = []
-    total = 0
-    for m in recent:
-        content = str(m.get("content") or "").strip()
-        atts = [a.get("name") or a.get("path", "") for a in (m.get("attachments") or [])]
-        if total + len(content) > max_chars:
-            break
-        structured.append({"role": m.get("role", "user"), "content": content, "attachments": atts})
-        total += len(content)
-
-    return json.dumps({"historical_context": structured}, ensure_ascii=False)
+    return json.dumps({"historical_context": recent}, ensure_ascii=False)

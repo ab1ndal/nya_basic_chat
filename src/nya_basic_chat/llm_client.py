@@ -7,14 +7,14 @@ from typing import Optional, Dict, Any, Sequence, List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import OpenAI
-from nya_basic_chat.helpers import _build_user_content, _format_history
+from nya_basic_chat.helpers import _format_history
 from nya_basic_chat.web import fetch_url, tavily_search
 import streamlit as st
 
 load_dotenv()
 
 SUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
-DEFAULT_HISTORY_TURNS = 4
+DEFAULT_HISTORY_TURNS = 10
 DEFAULT_HISTORY_CHARS = 2000
 
 
@@ -193,14 +193,22 @@ def _resolve_tools_until_ready(
     return messages
 
 
+def sanitize_for_openai(blocks):
+    clean = []
+    for b in blocks:
+        if b["type"] == "text":
+            clean.append({"type": "text", "text": b["text"]})
+        elif b["type"] == "image_url":
+            clean.append({"type": "image_url", "image_url": b["image_url"]})
+    return clean
+
+
 def chat(
-    prompt: str,
     *,
     system: str = "You are a helpful assistant.",
     max_completion_tokens: int = 512,
     model: Optional[str] = None,
-    attachments: Optional[Sequence[Dict[str, Any]]] = None,
-    pdf_mode: str = "text",  # "image" or "text"
+    content: Optional[Sequence[Dict[str, Any]]] = None,
     verbosity: Optional[str] = None,
     reasoning_effort: Optional[str] = None,
     stop: Optional[Sequence[str]] = None,
@@ -209,7 +217,6 @@ def chat(
     """Calls LLM with the given prompt and attachments."""
     cfg = _cfg()
     client = _client()
-    content = _build_user_content(prompt, attachments, pdf_mode=pdf_mode)
 
     history_block = _format_history(
         st.session_state.get("history", []),
@@ -218,10 +225,22 @@ def chat(
     )
 
     # System Prompt:
-    system = f"{system}. Format math with LaTeX only when needed: inline as $...$, block as $$...$$ or \[...\]. Never use plain parentheses for math. Use the provided conversation history as context when prior turns are relevant; do not request or invent additional history."
+    system = f"""{system}. Format math with LaTeX only when needed: inline as $...$, block as $$...$$. Never use plain parentheses for math. Use the provided conversation history as context when prior turns are relevant; do not request or invent additional history."""
+
+    print("---------------")
+    print(content)
+    print("---------------")
+    print(sanitize_for_openai(content))
+    print("---------------")
+    print(sanitize_for_openai(content) + [{"type": "text", "text": history_block}])
+    print("---------------")
+
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": system},
-        {"role": "user", "content": content + [{"type": "text", "text": history_block}]},
+        {
+            "role": "user",
+            "content": sanitize_for_openai(content) + [{"type": "text", "text": history_block}],
+        },
     ]
     # Resolve any tool requests first
     messages = _resolve_tools_until_ready(

@@ -18,6 +18,7 @@ from nya_basic_chat.storage import save_uploads, load_prefs, save_prefs, save_hi
 from nya_basic_chat.ui import render_message_with_latex, preview_file
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
+from nya_basic_chat.helpers import _build_user_content
 
 load_dotenv()
 
@@ -156,7 +157,8 @@ with st.sidebar:
 st.title("🤖 NYA LightChat")
 for msg in st.session_state.history:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.markdown(msg["content"][0]["text"])
+        # TODO UPDATE THIS
         for fm in msg.get("attachments", []):
             with st.container(border=True):
                 preview_file(fm)
@@ -167,9 +169,12 @@ if prompt:
     # pull attachments
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
+    # build user content
+    user_content = _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
+
     # add user message
     # add user message to history
-    user_msg = {"role": "user", "content": prompt, "attachments": attachments}
+    user_msg = {"role": "user", "content": user_content, "attachments": attachments}
     st.session_state.history.append(user_msg)
 
     with st.chat_message("user"):
@@ -183,9 +188,7 @@ if prompt:
 
     with st.chat_message("assistant"):
         call_kwargs = _build_call_kwargs(
-            prompt=prompt,
-            attachments=attachments,
-            pdf_mode=pdf_mode,
+            content=user_content,
             system=st.session_state.system,
             model=st.session_state.model,
             max_completion_tokens=max_completion_tokens,
@@ -207,5 +210,6 @@ if prompt:
             render_message_with_latex(answer)
 
     # persist to disk
+    answer = [{"category": "response", "type": "text", "text": answer}]
     st.session_state.history.append({"role": "assistant", "content": answer, "attachments": []})
     save_history({"messages": st.session_state.history})

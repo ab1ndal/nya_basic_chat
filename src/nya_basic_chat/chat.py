@@ -2,17 +2,13 @@
 from nya_basic_chat.llm_client import chat as _chat
 
 
-def _build_call_kwargs(
-    prompt, attachments, pdf_mode, system, model, max_completion_tokens, verbosity, reasoning
-):
+def _build_call_kwargs(content, system, model, max_completion_tokens, verbosity, reasoning):
     """Build kwargs for chat_once and chat_stream."""
     kwargs = dict(
-        prompt=prompt,
+        content=content,
         system=system,
         max_completion_tokens=max_completion_tokens,
         model=model,
-        attachments=attachments,
-        pdf_mode=pdf_mode,
     )
     # Requires llm_client.chat_once and chat_stream to accept these optional kwargs
     if verbosity:

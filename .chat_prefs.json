@@ -1,5 +1,5 @@
 {
-  "model": "gpt-5",
+  "model": "gpt-5-nano",
   "system": "You are a concise assistant.",
   "verbosity": "medium",
   "reasoning_effort": "minimal",
