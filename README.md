@@ -1,97 +1,72 @@
 # NYA Basic Chat
 
-A lightweight chat application with file upload and preview capabilities, built with Streamlit and Python.
+A lightweight Streamlit application for chat interactions with file upload and preview support.
 
-## 📋 Features
+## Prerequisites
+- Python 3.13 (matching the version specified in `pyproject.toml`)
+- [Poetry](https://python-poetry.org/docs/#installation) for dependency management
 
-- 💬 Chat interface with streaming responses
-- 📁 File upload support (images, PDFs, and more)
-- 📄 PDF preview functionality
-- 🖼️ Image preview
-- 🔄 Conversation history
-- 🔒 Secure file handling
-
-## 🏗️ Project Structure
-
-```
-ya_basic_chat/
-├── assets/                  # Static assets (images, icons, etc.)
-│   └── NYA_logo.svg        # Application logo
-├── src/                    # Source code
-│   └── nya_basic_chat/     # Python package
-│       ├── __init__.py     # Package initialization
-│       ├── helpers.py      # Utility functions
-│       └── llm_client.py   # LLM client implementation
-├── uploads/                # User-uploaded files
-├── .env.example            # Example environment variables
-├── app.py                  # Main Streamlit application
-├── poetry.lock             # Poetry dependency lock file
-└── pyproject.toml          # Project configuration and dependencies
-```
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.13
-- Poetry (for dependency management)
-
-### Installation
-
-1. Clone the repository:
+## Installation
+1. Clone this repository and move into the project directory:
    ```bash
    git clone <repository-url>
    cd nya_basic_chat
    ```
-
-2. Install dependencies:
+2. Install the project dependencies with Poetry:
    ```bash
    poetry install
    ```
-
-3. Copy the example environment file and update with your API keys:
+3. Create a local environment file:
    ```bash
    cp .env.example .env
-   # Edit .env with your configuration
    ```
+   Update `.env` with the credentials or configuration your deployment needs.
 
-### Running the Application
+## Project Structure
+```
+nya_basic_chat/
+  app.py
+  assets/
+    NYA_logo.svg
+  src/
+    nya_basic_chat/
+      __init__.py
+      helpers.py
+      llm_client.py
+  uploads/
+  .env.example
+  poetry.lock
+  pyproject.toml
+```
 
-Start the Streamlit application:
+## File Reference
+- `app.py`: Streamlit entry point; wires UI components, file upload handling, and chat workflow.
+- `assets/NYA_logo.svg`: Logo displayed in the Streamlit interface.
+- `src/nya_basic_chat/__init__.py`: Marks `nya_basic_chat` as a package and exposes reusable components.
+- `src/nya_basic_chat/helpers.py`: Shared helper functions for formatting, validation, and file processing.
+- `src/nya_basic_chat/llm_client.py`: Wrapper around the LLM API, manages prompts and streaming responses.
+- `uploads/`: Runtime storage for files users upload in the chat interface (ignored by version control).
+- `.env.example`: Template for required environment variables such as API keys or model configuration.
+- `pyproject.toml`: Project metadata, dependency definitions, and tool configuration.
+- `poetry.lock`: Locked dependency versions ensuring reproducible installs.
+
+## Running the App
+Start the Streamlit development server:
 ```bash
 poetry run streamlit run app.py
 ```
+The command launches Streamlit on the default port (usually http://localhost:8501/). The terminal output will display the exact URL.
 
-## 🛠️ Development
+## Optional: Development Setup
+- Install development dependencies and tools:
+  ```bash
+  poetry install --with dev
+  ```
+- Run the test suite:
+  ```bash
+  poetry run pytest
+  ```
 
-### Dependencies
-
-- Python 3.13
-- Poetry for dependency management
-
-### Development Setup
-
-1. Install development dependencies:
-   ```bash
-   poetry install --with dev
-   ```
-
-2. Set up pre-commit hooks:
-   ```bash
-   pre-commit install
-   ```
-
-### Code Style
-
-This project uses:
-- Black for code formatting
-- Ruff for linting
-- Pre-commit hooks for automated code quality checks
-
-## 📝 License
-
-This project is licensed under the terms of the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Troubleshooting
+- If Poetry cannot find Python 3.13, install it and re-run `poetry env use 3.13`.
+- To refresh dependencies after editing `pyproject.toml`, run `poetry lock --no-update` followed by `poetry install`.
