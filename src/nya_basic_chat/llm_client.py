@@ -10,12 +10,17 @@ from openai import OpenAI
 from nya_basic_chat.helpers import _format_history
 from nya_basic_chat.web import fetch_url, tavily_search
 import streamlit as st
+import logging
+import openai
 
 load_dotenv()
 
 SUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
 DEFAULT_HISTORY_TURNS = 10
 DEFAULT_HISTORY_CHARS = 2000
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -157,7 +162,19 @@ def _resolve_tools_until_ready(
             tools=tools,
             tool_choice=tool_choice or "auto",
         )
-        resp = client.chat.completions.create(**params)
+        try:
+            resp = client.chat.completions.create(**params)
+        except openai.RateLimitError as e:
+            logger.error("Rate limit hit in _resolve_tools_until_ready", exc_info=True)
+            logger.error("Error details: %s", getattr(e, "__dict__", {}))
+            st.error("⚠️ OpenAI rate limit reached. Please wait a moment and try again.")
+            return messages + [
+                {"role": "assistant", "content": "Rate limit reached. Try again later."}
+            ]
+        except Exception as e:
+            logger.error("Unexpected error in _resolve_tools_until_ready", exc_info=True)
+            st.error(f"⚠️ Unexpected error: {str(e)}")
+            return messages
         msg = resp.choices[0].message
         tool_calls = getattr(msg, "tool_calls", None)
 
@@ -262,12 +279,22 @@ def chat(
         reasoning_effort=reasoning_effort,
         stop=stop,
     )
-    if streaming:
-        resp = client.chat.completions.create(**params)
-        for event in resp:
-            delta = event.choices[0].delta.content
-            if delta:
-                yield delta
-    else:
-        resp = client.chat.completions.create(**params)
-        return resp.choices[0].message.content or ""
+    try:
+        if streaming:
+            resp = client.chat.completions.create(**params)
+            for event in resp:
+                delta = event.choices[0].delta.content
+                if delta:
+                    yield delta
+        else:
+            resp = client.chat.completions.create(**params)
+            return resp.choices[0].message.content or ""
+    except openai.RateLimitError as e:
+        logger.error("Rate limit hit in chat()", exc_info=True)
+        logger.error("Error details: %s", getattr(e, "__dict__", {}))
+        st.error(f"⚠️ OpenAI rate limit reached. {str(e)}")
+        return
+    except Exception as e:
+        logger.error("Unexpected error in chat()", exc_info=True)
+        st.error(f"⚠️ Unexpected error: {str(e)}")
+        return

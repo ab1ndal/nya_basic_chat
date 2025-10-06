@@ -11,11 +11,11 @@ import json
 
 
 def _img_bytes_to_data_url(img_bytes: bytes, mime: str = "image/png") -> str:
-    b64 = base64.b64encode(img_bytes).decode("utf-8")
+    b64 = base64.b64encode(img_bytes).decode("ascii")
     return f"data:{mime};base64,{b64}"
 
 
-def _load_image_as_data_url(path: str, max_side: int = 1536) -> str:
+def _load_image_as_data_url(path: str, max_side: int = 1024) -> str:
     """Load local image, optionally downscale to fit within max_side, return data URL (PNG)."""
     im = Image.open(path).convert("RGB")
     w, h = im.size
@@ -27,7 +27,7 @@ def _load_image_as_data_url(path: str, max_side: int = 1536) -> str:
     return _img_bytes_to_data_url(buf.getvalue(), "image/png")
 
 
-def _pdf_pages_to_data_urls(path: str, dpi: int = 150, max_side: int = 1536) -> List[str]:
+def _pdf_pages_to_data_urls(path: str, dpi: int = 72, max_side: int = 768) -> List[str]:
     """Render first N pages of a PDF to PNG data URLs."""
     urls: List[str] = []
     doc = fitz.open(path)
@@ -110,6 +110,16 @@ def _build_user_content(
                                 "category": "attachment",
                                 "type": "image_url",
                                 "image_url": {"url": u},
+                                "name": os.path.basename(path),
+                            }
+                        )
+                    txt = _extract_pdf_text(path)
+                    if txt:
+                        parts.append(
+                            {
+                                "category": "attachment",
+                                "type": "text",
+                                "text": txt,
                                 "name": os.path.basename(path),
                             }
                         )
