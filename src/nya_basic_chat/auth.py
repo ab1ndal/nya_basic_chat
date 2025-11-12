@@ -49,8 +49,7 @@ def sign_up_and_in() -> dict | None:
     with tabs[1]:
         si_email = st.text_input("Work email", key="si_email")
         si_pass = st.text_input("Password", type="password", key="si_pass")
-        col1, col2 = st.columns([1, 1])
-        if col1.button("Sign in"):
+        if st.button("Sign in"):
             if not _is_allowed(si_email):
                 st.error("Use your nyase.com email")
             else:
@@ -64,14 +63,6 @@ def sign_up_and_in() -> dict | None:
                         st.success("Signed in")
                 except Exception as e:
                     st.error(f"Sign in failed. {e}")
-
-        if col2.button("Sign out"):
-            try:
-                sb.auth.sign_out()
-                st.session_state.sb_session = None
-                st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Sign out failed. {e}")
 
     # return user if signed in
     try:

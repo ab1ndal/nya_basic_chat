@@ -31,7 +31,13 @@ if not user:
     st.stop()
 st.session_state["user"] = user
 st.sidebar.success(f"Signed in as {user['email']}")
+with st.sidebar:
+    if st.button("Sign out"):
+        from nya_basic_chat.auth import _sb
 
+        _sb().auth.sign_out()
+        st.session_state.sb_session = None
+        st.rerun()
 # -------- init session state --------
 build_history()
 prefs = load_prefs()
