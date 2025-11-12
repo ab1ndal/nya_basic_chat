@@ -26,6 +26,15 @@ def sign_up_and_in() -> dict | None:
     Returns a dict with user info when signed in, else None.
     """
     sb = _sb()
+
+    # Check if user is already signed in
+    try:
+        sess = sb.auth.get_session()
+        if sess and sess.user:
+            return {"email": sess.user.email, "id": sess.user.id}
+    except Exception:
+        pass
+
     st.title("Sign in")
 
     tabs = st.tabs(["Sign up", "Sign in"])
@@ -61,6 +70,7 @@ def sign_up_and_in() -> dict | None:
                     else:
                         st.session_state.sb_session = sess
                         st.success("Signed in")
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Sign in failed. {e}")
 
