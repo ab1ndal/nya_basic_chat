@@ -19,10 +19,18 @@ from nya_basic_chat.ui import render_message_with_latex, preview_file
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
 from nya_basic_chat.helpers import _build_user_content
+from nya_basic_chat.auth import sign_up_and_in
 
 load_dotenv()
 
 st.set_page_config(page_title="NYA LightChat", page_icon=r"assets/NYA_logo.svg")
+
+# -------- auth gate --------
+user = sign_up_and_in()
+if not user:
+    st.stop()
+st.session_state["user"] = user
+st.sidebar.success(f"Signed in as {user['email']}")
 
 # -------- init session state --------
 build_history()
