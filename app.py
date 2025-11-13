@@ -14,7 +14,14 @@ import time
 import streamlit as st
 
 from dotenv import load_dotenv
-from nya_basic_chat.storage import save_uploads, load_prefs, save_prefs, save_history, build_history
+from nya_basic_chat.storage import (
+    save_uploads,
+    load_prefs,
+    save_prefs,
+    build_history_user,
+    append_user_message,
+    clear_history_user,
+)
 from nya_basic_chat.ui import render_message_with_latex, preview_file
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
@@ -31,6 +38,10 @@ if not user:
     st.stop()
 st.session_state["user"] = user
 st.sidebar.success(f"Signed in as {user['email']}")
+
+USER_ID = user["id"]
+THREAD_ID = "default"
+
 with st.sidebar:
     if st.button("Sign out"):
         from nya_basic_chat.auth import _sb
@@ -39,7 +50,10 @@ with st.sidebar:
         st.session_state.sb_session = None
         st.rerun()
 # -------- init session state --------
-build_history()
+if "history_loaded" not in st.session_state:
+    build_history_user(USER_ID, THREAD_ID)
+st.session_state.history_loaded = True
+
 prefs = load_prefs()
 
 # key to reset uploader after send
@@ -164,7 +178,7 @@ with st.sidebar:
 
     if st.button("🧹 Clear history"):
         st.session_state.history = []
-        save_history({"messages": []})
+        clear_history_user(USER_ID, THREAD_ID)
         st.success("History cleared.")
 
 # -------- render past messages --------
@@ -190,6 +204,7 @@ if prompt:
     # add user message to history
     user_msg = {"role": "user", "content": user_content, "attachments": attachments}
     st.session_state.history.append(user_msg)
+    append_user_message(USER_ID, "user", user_content, attachments, THREAD_ID)
 
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -224,6 +239,8 @@ if prompt:
             render_message_with_latex(answer)
 
     # persist to disk
-    answer = [{"category": "response", "type": "text", "text": answer}]
-    st.session_state.history.append({"role": "assistant", "content": answer, "attachments": []})
-    save_history({"messages": st.session_state.history})
+    answer_parts = [{"category": "response", "type": "text", "text": answer}]
+    st.session_state.history.append(
+        {"role": "assistant", "content": answer_parts, "attachments": []}
+    )
+    append_user_message(USER_ID, "assistant", answer_parts, attachments=[], thread_id=THREAD_ID)

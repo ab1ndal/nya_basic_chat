@@ -3,17 +3,16 @@ import streamlit as st
 from supabase import create_client, Client
 from nya_basic_chat.config import get_secret
 
-SUPABASE_URL = get_secret("SUPABASE_URL")
-SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
-ALLOWED_DOMAIN = "nyase.com"
-
 
 @st.cache_resource
 def _sb() -> Client:
+    SUPABASE_URL = get_secret("SUPABASE_URL")
+    SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 
 def _is_allowed(email: str) -> bool:
+    ALLOWED_DOMAIN = "nyase.com"
     return isinstance(email, str) and email.lower().strip().endswith("@" + ALLOWED_DOMAIN)
 
 

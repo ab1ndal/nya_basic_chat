@@ -5,6 +5,12 @@ import time
 import mimetypes
 from nya_basic_chat.config import HISTORY_FILE, UPLOAD_DIR, PREFS_FILE
 import streamlit as st
+from typing import Any
+from nya_basic_chat.db import (
+    load_messages as db_load,
+    append_message as db_append,
+    clear_thread as db_clear,
+)
 
 
 def load_json(path: Path, default=None) -> dict | None:
@@ -54,6 +60,22 @@ def load_prefs() -> dict:
 def save_prefs(data: dict) -> None:
     """Save prefs to file."""
     save_json(PREFS_FILE, data)
+
+
+def build_history_user(user_id: str, thread_id: str = "default") -> None:
+    """Build history from database."""
+    if "history" not in st.session_state:
+        st.session_state.history = db_load(user_id, thread_id)
+
+
+def append_user_message(
+    user_id: str, role: str, content: Any, attachments: Any = None, thread_id: str = "default"
+) -> None:
+    db_append(user_id, role, content, attachments or [], thread_id)
+
+
+def clear_history_user(user_id: str, thread_id: str = "default") -> None:
+    db_clear(user_id, thread_id)
 
 
 def build_history():
