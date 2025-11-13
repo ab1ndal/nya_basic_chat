@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import time
 import mimetypes
-from nya_basic_chat.config import HISTORY_FILE, UPLOAD_DIR, PREFS_FILE
+from nya_basic_chat.config import UPLOAD_DIR, PREFS_FILE
 import streamlit as st
 from typing import Any
 from nya_basic_chat.db import (
@@ -78,8 +78,8 @@ def clear_history_user(user_id: str, thread_id: str = "default") -> None:
     db_clear(user_id, thread_id)
 
 
+"""
 def build_history():
-    """Build history from file."""
     if "history" not in st.session_state:
         saved = load_json(HISTORY_FILE, default={"messages": []})
         # Backward compat: tuples -> dicts
@@ -100,5 +100,5 @@ def build_history():
 
 
 def save_history(data: dict) -> None:
-    """Save history to file."""
     save_json(HISTORY_FILE, data)
+"""
