@@ -4,11 +4,29 @@ from supabase import create_client, Client
 from nya_basic_chat.config import get_secret
 
 
-@st.cache_resource
 def _sb() -> Client:
     SUPABASE_URL = get_secret("SUPABASE_URL")
     SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
-    return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    if "sb_client" not in st.session_state:
+        st.session_state.sb_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    return st.session_state.sb_client
+
+def _save_tokens(sess) -> None:
+    try:
+        access = getattr(sess, "access_token", None) or getattr(getattr(sess, "session", None), "access_token", None)
+        refresh = getattr(getattr(sess, "session", None), "refresh_token", None)
+        if access and refresh:
+            st.session_state["_sb_tokens"] = {"access": access, "refresh": refresh}
+    except Exception:
+        pass
+
+def _restore_tokens() -> None:
+    tokens = st.session_state.get("_sb_tokens")
+    if tokens:
+        try:
+            _sb().auth.set_session(tokens["access"], tokens["refresh"])
+        except Exception:
+            pass
 
 
 def _is_allowed(email: str) -> bool:
@@ -25,14 +43,11 @@ def sign_up_and_in() -> dict | None:
     Returns a dict with user info when signed in, else None.
     """
     sb = _sb()
+    _restore_tokens()
 
-    # Check if user is already signed in
-    try:
-        sess = sb.auth.get_session()
-        if sess and sess.user:
-            return {"email": sess.user.email, "id": sess.user.id}
-    except Exception:
-        pass
+    existing = sb.auth.get_session()
+    if existing and existing.user:
+        return {"email": existing.user.email, "id": existing.user.id}
 
     st.title("Sign in")
 
@@ -67,6 +82,7 @@ def sign_up_and_in() -> dict | None:
                     if not sess or not sess.user:
                         st.error("Sign in failed")
                     else:
+                        _save_tokens(sess)
                         st.session_state.sb_session = sess
                         st.success("Signed in")
                         st.rerun()
@@ -75,7 +91,7 @@ def sign_up_and_in() -> dict | None:
 
     # return user if signed in
     try:
-        sess = _sb().auth.get_session()
+        sess = sb.auth.get_session()
         if sess and sess.user:
             return {"email": sess.user.email, "id": sess.user.id}
     except Exception:
