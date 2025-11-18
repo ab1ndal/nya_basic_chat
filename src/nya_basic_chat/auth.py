@@ -72,22 +72,36 @@ def sign_up_and_in() -> dict | None:
     with tabs[1]:
         si_email = st.text_input("Work email", key="si_email")
         si_pass = st.text_input("Password", type="password", key="si_pass")
-        if st.button("Sign in"):
-            if not _is_allowed(si_email):
-                st.error("Use your nyase.com email")
-            else:
-                try:
-                    sb.auth.sign_in_with_password({"email": si_email, "password": si_pass})
-                    sess = sb.auth.get_session()
-                    if not sess or not sess.user:
-                        st.error("Sign in failed")
-                    else:
-                        _save_tokens(sess)
-                        st.session_state.sb_session = sess
-                        st.success("Signed in")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Sign in failed. {e}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Sign in"):
+                if not _is_allowed(si_email):
+                    st.error("Use your nyase.com email")
+                else:
+                    try:
+                        sb.auth.sign_in_with_password({"email": si_email, "password": si_pass})
+                        sess = sb.auth.get_session()
+                        if not sess or not sess.user:
+                            st.error("Sign in failed")
+                        else:
+                            st.session_state.sb_session = sess
+                            st.success("Signed in")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Sign in failed. {e}")
+        with col2:
+            if st.button("Forget Password"):
+                if not si_email:
+                    st.warning("Enter your work email to reset your password")
+                elif not _is_allowed(si_email):
+                    st.error("Use your nyase.com email to reset your password")
+                else:
+                    try:
+                        sb.auth.reset_password_for_email(si_email)
+                        st.success("A password reset email has been sent to your email")
+                    except Exception as e:
+                        st.error(f"Password reset failed. {e}")
 
     # return user if signed in
     try:
