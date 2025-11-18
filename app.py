@@ -32,6 +32,29 @@ load_dotenv()
 
 st.set_page_config(page_title="NYA LightChat", page_icon=r"assets/NYA_logo.svg")
 
+params = st.query_params
+mode = params.get("type", [""])[0]
+
+if mode == "recovery":
+    st.subheader("Reset your password")
+
+    new_pass = st.text_input("New password", type="password")
+    confirm = st.text_input("Confirm password", type="password")
+
+    if st.button("Update password"):
+        if new_pass != confirm:
+            st.error("Passwords do not match")
+        else:
+            try:
+                from nya_basic_chat.auth import _sb
+
+                _sb().auth.update_user({"password": new_pass})
+                st.success("Password updated successfully. Please sign in again")
+                st.query_params.clear()
+            except Exception as e:
+                st.error(f"Failed to update password. {e}")
+
+    st.stop()
 # -------- auth gate --------
 user = sign_up_and_in()
 if not user:
