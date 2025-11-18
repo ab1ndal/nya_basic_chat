@@ -27,16 +27,33 @@ from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
 from nya_basic_chat.helpers import _build_user_content
 from nya_basic_chat.auth import sign_up_and_in
+import urllib.parse
 
 load_dotenv()
 
 st.set_page_config(page_title="NYA LightChat", page_icon=r"assets/NYA_logo.svg")
 
-params = st.query_params
-mode = params.get("type", [""])[0]
+fragment = st.js("window.location.hash")
+recovery_params = {}
+
+if fragment and fragment.startswith("#"):
+    clean = fragment.lstrip("#")
+    parsed = urllib.parse.parse_qs(clean)
+    recovery_params = {k: v[0] for k, v in parsed.items()}
+
+mode = recovery_params.get("type", None)
 
 if mode == "recovery":
     st.subheader("Reset your password")
+    access_token = recovery_params.get("access_token")
+    refresh_token = recovery_params.get("refresh_token")
+
+    try:
+        from nya_basic_chat.auth import _sb
+
+        _sb().auth.set_session(access_token=access_token, refresh_token=refresh_token)
+    except Exception as e:
+        st.error(f"Unable to initialize session: {e}")
 
     new_pass = st.text_input("New password", type="password")
     confirm = st.text_input("Confirm password", type="password")
@@ -46,14 +63,12 @@ if mode == "recovery":
             st.error("Passwords do not match")
         else:
             try:
-                from nya_basic_chat.auth import _sb
-
                 _sb().auth.update_user({"password": new_pass})
                 st.success("Password updated successfully. Please sign in again")
-                st.query_params.clear()
+                st.js("window.location.hash = ''")
+                st.rerun()
             except Exception as e:
                 st.error(f"Failed to update password. {e}")
-
     st.stop()
 # -------- auth gate --------
 user = sign_up_and_in()
@@ -68,12 +83,21 @@ THREAD_ID = "default"
 with st.sidebar:
     if st.button("Sign out"):
         from nya_basic_chat.auth import _sb
+
         sb = _sb()
         try:
             sb.auth.sign_out()
         except Exception:
             pass
-        for k in ["_sb_tokens", "sb_client", "user", "history", "uploader_key", "pending_attachments", "history_loaded"]:
+        for k in [
+            "_sb_tokens",
+            "sb_client",
+            "user",
+            "history",
+            "uploader_key",
+            "pending_attachments",
+            "history_loaded",
+        ]:
             if k in st.session_state:
                 del st.session_state[k]
         try:
