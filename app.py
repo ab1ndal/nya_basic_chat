@@ -68,9 +68,18 @@ THREAD_ID = "default"
 with st.sidebar:
     if st.button("Sign out"):
         from nya_basic_chat.auth import _sb
-
-        _sb().auth.sign_out()
-        st.session_state.sb_session = None
+        sb = _sb()
+        try:
+            sb.auth.sign_out()
+        except Exception:
+            pass
+        for k in ["_sb_tokens", "sb_client", "user", "history", "uploader_key", "pending_attachments", "history_loaded"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        try:
+            sb.postgrest.auth(None)
+        except Exception:
+            pass
         st.rerun()
 # -------- init session state --------
 if "history_loaded" not in st.session_state:
