@@ -30,6 +30,11 @@ from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
 from nya_basic_chat.feedback import send_graph_email
 from nya_basic_chat.rag.inject import inject
+from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
+from nya_basic_chat.rag.processor import get_supabase
+import uuid
+
+load_dotenv()
 
 
 @st.dialog("Submit Feedback or Feature Request")
@@ -75,12 +80,6 @@ def open_feedback_dialog():
         if st.button("Cancel", key="cancel_feedback_btn"):
             st.rerun()
 
-
-from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
-from nya_basic_chat.rag.processor import get_supabase
-import uuid
-
-load_dotenv()
 
 st.set_page_config(page_title="NYA LightChat", page_icon=r"assets/NYA_logo.svg")
 
