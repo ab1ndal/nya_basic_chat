@@ -1,7 +1,7 @@
-from datetime import datetime
 from supabase import create_client
 from pinecone import Pinecone
 from nya_basic_chat.config import get_secret
+from datetime import datetime, timezone
 
 
 def get_supabase():
@@ -26,7 +26,7 @@ def cleanup_expired_temp_files(user_id):
         .data
     )
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     expired = [r for r in rows if (now - r["created_at"]).days >= 7]
 
