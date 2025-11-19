@@ -48,7 +48,7 @@ def chunk_text(text, chunk_size=1500, overlap=250):
 
 def embed_text(chunks):
     client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
-    response = client.embeddings.create(model="text-embedding-3-large", input=chunks)
+    response = client.embeddings.create(model="text-embedding-3-small", input=chunks)
     return [r.embedding for r in response.data]
 
 

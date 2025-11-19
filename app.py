@@ -21,7 +21,7 @@ from nya_basic_chat.storage import (
     append_user_message,
     clear_history_user,
 )
-from nya_basic_chat.ui import render_message_with_latex, preview_file
+from nya_basic_chat.ui import render_message_with_latex
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
 
@@ -29,6 +29,7 @@ from nya_basic_chat.config import get_secret
 from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
 from nya_basic_chat.feedback import send_graph_email
+from nya_basic_chat.rag.inject import inject
 
 
 @st.dialog("Submit Feedback or Feature Request")
@@ -282,6 +283,7 @@ with st.sidebar:
         "max_completion_tokens": st.session_state.get("max_completion_tokens", 512),
         "streaming": st.session_state.get("streaming", True),
         "pdf_mode": st.session_state.get("pdf_mode", "text"),
+        "upload_mode": st.session_state.get("upload_mode", "Permanent"),
     }
     save_prefs(prefs_to_save)
 
@@ -308,7 +310,7 @@ for msg in st.session_state.history:
         # TODO UPDATE THIS
         for fm in msg.get("attachments", []):
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
 # -------- input + response --------
 prompt = st.chat_input("Ask me something…")
@@ -317,21 +319,28 @@ if prompt:
     # pull attachments
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
+    system_prompt, final_user_prompt = inject(
+        system_prompt=st.session_state.system,
+        user_prompt=prompt,
+        user_id=USER_ID,
+        attachment_ids=attachments,
+    )
+
     # build user content
-    user_content = [{"type": "text", "text": prompt}]
+    user_content = [{"type": "text", "text": final_user_prompt}]
     # _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
 
     # add user message
     # add user message to history
     user_msg = {"role": "user", "content": user_content, "attachments": attachments}
     st.session_state.history.append(user_msg)
-    append_user_message(USER_ID, "user", user_content, attachments, THREAD_ID)
+    append_user_message(USER_ID, "user", user_content, [], THREAD_ID)
 
     with st.chat_message("user"):
         st.markdown(prompt)
         for fm in attachments:
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
     # clear pending after we used them
     st.session_state.pending_attachments = []
@@ -364,4 +373,4 @@ if prompt:
     st.session_state.history.append(
         {"role": "assistant", "content": answer_parts, "attachments": []}
     )
-    append_user_message(USER_ID, "assistant", answer_parts, attachments=[], thread_id=THREAD_ID)
+    append_user_message(USER_ID, "assistant", answer_parts, [], thread_id=THREAD_ID)

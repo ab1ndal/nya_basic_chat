@@ -5,7 +5,7 @@ from nya_basic_chat.config import get_secret
 
 def embed_query(text):
     client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
-    response = client.embeddings.create(model="text-embedding-3-large", input=[text])
+    response = client.embeddings.create(model="text-embedding-3-small", input=[text])
     return response.data[0].embedding
 
 
