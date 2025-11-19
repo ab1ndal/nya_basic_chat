@@ -24,7 +24,7 @@ from nya_basic_chat.storage import (
 from nya_basic_chat.ui import render_message_with_latex, preview_file
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
-from nya_basic_chat.helpers import _build_user_content
+#from nya_basic_chat.helpers import _build_user_content
 from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
 from nya_basic_chat.feedback import send_graph_email
@@ -322,7 +322,8 @@ if prompt:
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
     # build user content
-    user_content = _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
+    user_content = [{"type": "text", "text": prompt}]
+    #_build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
 
     # add user message
     # add user message to history
