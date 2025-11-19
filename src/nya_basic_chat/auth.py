@@ -11,14 +11,18 @@ def _sb() -> Client:
         st.session_state.sb_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     return st.session_state.sb_client
 
+
 def _save_tokens(sess) -> None:
     try:
-        access = getattr(sess, "access_token", None) or getattr(getattr(sess, "session", None), "access_token", None)
+        access = getattr(sess, "access_token", None) or getattr(
+            getattr(sess, "session", None), "access_token", None
+        )
         refresh = getattr(getattr(sess, "session", None), "refresh_token", None)
         if access and refresh:
             st.session_state["_sb_tokens"] = {"access": access, "refresh": refresh}
     except Exception:
         pass
+
 
 def _restore_tokens() -> None:
     tokens = st.session_state.get("_sb_tokens")
@@ -98,7 +102,12 @@ def sign_up_and_in() -> dict | None:
                     st.error("Use your nyase.com email to reset your password")
                 else:
                     try:
-                        sb.auth.reset_password_for_email(si_email)
+                        sb.auth.reset_password_for_email(
+                            si_email,
+                            options={
+                                "redirect_to": "https://ab1ndal.github.io/reset-redirect-lightchat/reset.html"
+                            },
+                        )
                         st.success("A password reset email has been sent to your email")
                     except Exception as e:
                         st.error(f"Password reset failed. {e}")
