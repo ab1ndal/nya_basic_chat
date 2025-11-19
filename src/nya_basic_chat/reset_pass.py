@@ -24,6 +24,7 @@ def handle_password_recovery():
             else:
                 _sb().auth.update_user({"password": pw1})
                 st.success("Password updated. Please sign in again.")
-                st.stop()
+                st.query_params.clear()
+                st.rerun()
 
         st.stop()
