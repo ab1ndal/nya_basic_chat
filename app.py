@@ -33,6 +33,8 @@ from nya_basic_chat.rag.inject import inject
 from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
 from nya_basic_chat.rag.processor import get_supabase
 import uuid
+import threading
+from nya_basic_chat.rag.processor import ingest_file
 
 load_dotenv()
 
@@ -225,6 +227,12 @@ with st.sidebar:
                 {"attachment_id": attachment_id, "status": "pending"}
             ).execute()
 
+            def bg_ingest(aid):
+                att = sb.table("attachments").select("*").eq("id", aid).single().execute().data
+                ingest_file(att)
+
+            threading.Thread(target=bg_ingest, args=(attachment_id,), daemon=True).start()
+
             st.session_state.pending_attachments.append(attachment_id)
 
         st.session_state.uploader_key += 1
@@ -300,6 +308,32 @@ with st.sidebar:
         st.session_state.history = []
         clear_history_user(USER_ID, THREAD_ID)
         st.success("History cleared.")
+        sb = get_supabase()
+        temp_atts = (
+            sb.table("attachments")
+            .select("*")
+            .eq("user_id", USER_ID)
+            .eq("is_temp", True)
+            .execute()
+            .data
+        )
+        from nya_basic_chat.rag.processor import get_pinecone
+
+        index = get_pinecone()
+        for att in temp_atts:
+            # delete from storage bucket
+            sb.storage.from_("Temp").remove([att["storage_path"]])
+
+            # delete Pinecone vectors
+            prefix = f"{att['id']}_chunk_"
+            ids = [prefix + str(i) for i in range(200)]
+            index.delete(ids=ids, namespace=str(USER_ID))
+
+            # delete DB rows
+            sb.table("attachments").delete().eq("id", att["id"]).execute()
+            sb.table("attachment_processing_status").delete().eq(
+                "attachment_id", att["id"]
+            ).execute()
 
 # -------- render past messages --------
 st.title("🤖 NYA LightChat")
@@ -322,7 +356,7 @@ if prompt:
         system_prompt=st.session_state.system,
         user_prompt=prompt,
         user_id=USER_ID,
-        attachment_ids=attachments,
+        file_ids=attachments,
     )
 
     # build user content

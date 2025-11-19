@@ -1,4 +1,3 @@
-import tempfile
 from datetime import datetime
 from supabase import create_client
 from openai import OpenAI
@@ -26,11 +25,17 @@ def download_file(storage_path, is_temp):
 
 
 def extract_text(file_bytes):
-    with tempfile.NamedTemporaryFile(delete=True) as tmp:
-        tmp.write(file_bytes)
-        tmp.flush()
-        elements = partition(filename=tmp.name)
-    return "\n\n".join([el.text for el in elements if isinstance(el, Text)])
+    elements = partition(file=file_bytes)
+    out = []
+    for el in elements:
+        if isinstance(el, Text):
+            out.append(
+                {
+                    "text": el.text,
+                    "page": getattr(el.metadata, "page_number", None),
+                }
+            )
+    return out
 
 
 def chunk_text(text, chunk_size=1500, overlap=250):
@@ -66,15 +71,23 @@ def ingest_file(attachment_row):
     try:
         file_bytes = download_file(attachment_row["storage_path"], attachment_row["is_temp"])
 
-        text = extract_text(file_bytes)
-        chunks = chunk_text(text)
-        embeddings = embed_text(chunks)
+        elements = extract_text(file_bytes)
+        page_chunks = []  # will hold dicts {page, chunk}
 
+        for el in elements:
+            page = el["page"]
+            raw_text = el["text"]
+
+            chs = chunk_text(raw_text)  # your overlapping chunker
+            for idx, ch in enumerate(chs):
+                page_chunks.append({"page": page, "chunk": ch})
+
+        embeddings = embed_text([pc["chunk"] for pc in page_chunks])
         index = get_pinecone()
         namespace = str(attachment_row["user_id"])
 
         upserts = []
-        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+        for i, (chunk, emb) in enumerate(zip(page_chunks, embeddings)):
             upserts.append(
                 {
                     "id": f"{attachment_row['id']}_chunk_{i}",
@@ -82,8 +95,9 @@ def ingest_file(attachment_row):
                     "metadata": {
                         "attachment_id": str(attachment_row["id"]),
                         "file_name": attachment_row["file_name"],
+                        "page_number": page_chunks[i]["page"],
                         "chunk_index": i,
-                        "content": chunk,
+                        "content": page_chunks[i]["chunk"],
                     },
                 }
             )

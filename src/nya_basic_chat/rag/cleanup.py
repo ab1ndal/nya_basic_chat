@@ -27,8 +27,11 @@ def cleanup_expired_temp_files(user_id):
     )
 
     now = datetime.now(timezone.utc)
-
-    expired = [r for r in rows if (now - r["created_at"]).days >= 7]
+    expired = []
+    for r in rows:
+        created = datetime.fromisoformat(r["created_at"])
+        if (now - created).days >= 7:
+            expired.append(r)
 
     for r in expired:
         bucket = "Temp"

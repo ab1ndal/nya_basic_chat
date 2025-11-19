@@ -27,6 +27,9 @@ def retrieve_chunks(user_id, file_ids, prompt, top_k=8):
     excerpts = []
     for match in results.matches:
         m = match.metadata
-        excerpts.append(f"[{m['file_name']} chunk {m['chunk_index']}]\n{m['content']}")
+        page = m.get("page_number", "?")
+        chunk = m.get("chunk_index", "?")
+        file_name = m.get("file_name", "?")
+        excerpts.append(f"[{file_name} - page {page}, chunk {chunk}]\n{m['content']}")
 
     return "\n\n".join(excerpts)
