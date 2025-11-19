@@ -15,7 +15,6 @@ import streamlit as st
 
 from dotenv import load_dotenv
 from nya_basic_chat.storage import (
-    save_uploads,
     load_prefs,
     save_prefs,
     build_history_user,
@@ -80,6 +79,9 @@ def open_feedback_dialog():
         if st.button("Cancel", key="cancel_feedback_btn"):
             st.rerun()
 
+from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
+from nya_basic_chat.rag.processor import get_supabase
+import uuid
 
 load_dotenv()
 
@@ -175,17 +177,60 @@ with st.sidebar:
     )
 
     uploaded_files = st.file_uploader(
-        "Upload images or PDFs",
-        type=["png", "jpg", "jpeg", "webp", "jfif", "tif", "tiff", "bmp", "pdf"],
+        "Upload documents",
+        type=[
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "tif",
+            "tiff",
+            "bmp",
+            "pdf",
+            "docx",
+            "txt",
+            "md",
+            "xlsx",
+        ],
         accept_multiple_files=True,
         key=f"uploader_{st.session_state.uploader_key}",
     )
+    upload_mode = st.radio(
+        "Upload Mode",
+        ["Permanent", "Temp"],
+        index=0 if prefs.get("upload_mode", "Permanent") == "Permanent" else 1,
+        help="Temp files are deleted after seven days",
+    )
 
     if uploaded_files:
-        # Save now so they persist even if the app reruns
-        saved = save_uploads(uploaded_files)
-        st.session_state.pending_attachments.extend(saved)
-        # reset the uploader to avoid duplicate re-attachments on rerun
+        sb = get_supabase()
+        for f in uploaded_files:
+            # Build storage path
+            attachment_id = str(uuid.uuid4())
+            bucket = "Temp" if upload_mode == "Temp" else "Permanent"
+            storage_path = f"{USER_ID}/{attachment_id}/{f.name}"
+
+            sb.storage.from_(bucket).upload(storage_path, f.read())
+
+            # Insert DB row
+            sb.table("attachments").insert(
+                {
+                    "id": attachment_id,
+                    "user_id": USER_ID,
+                    "file_name": f.name,
+                    "storage_path": storage_path,
+                    "file_type": f.type,
+                    "is_temp": upload_mode == "Temp",
+                }
+            ).execute()
+
+            # Create status row
+            sb.table("attachment_processing_status").insert(
+                {"attachment_id": attachment_id, "status": "pending"}
+            ).execute()
+
+            st.session_state.pending_attachments.append(attachment_id)
+
         st.session_state.uploader_key += 1
         st.rerun()
 
@@ -194,7 +239,7 @@ with st.sidebar:
         st.caption("Pending attachments (will be added to your next message):")
         for fm in st.session_state.pending_attachments:
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
     st.subheader("Settings")
     st.session_state.system = st.text_area("System prompt", value=st.session_state.system)
@@ -272,6 +317,7 @@ for msg in st.session_state.history:
 # -------- input + response --------
 prompt = st.chat_input("Ask me something…")
 if prompt:
+    cleanup_expired_temp_files(USER_ID)
     # pull attachments
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
