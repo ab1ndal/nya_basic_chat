@@ -24,9 +24,57 @@ from nya_basic_chat.storage import (
 from nya_basic_chat.ui import render_message_with_latex, preview_file
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
-from nya_basic_chat.helpers import _build_user_content
+
+# from nya_basic_chat.helpers import _build_user_content
 from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
+from nya_basic_chat.feedback import send_graph_email
+
+
+@st.dialog("Submit Feedback or Feature Request")
+def open_feedback_dialog():
+    st.subheader("Feedback Form")
+
+    priority = st.selectbox(
+        "Priority", ["Low", "Medium", "High", "Critical"], index=1, key="feedback_priority"
+    )
+
+    message = st.text_area("Describe the issue or request", height=150, key="feedback_message")
+
+    uploaded_files = st.file_uploader(
+        "Attach screenshots or files",
+        type=["png", "jpg", "jpeg", "pdf"],
+        accept_multiple_files=True,
+        key="feedback_uploads",
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Submit", key="submit_feedback_btn"):
+            subject = f"[{priority}] Feedback from {st.session_state['user']['email']}"
+            body = (
+                f"From: {st.session_state['user']['email']}\n"
+                f"Priority: {priority}\n\n"
+                f"Message:\n{message}\n"
+            )
+            # DEBUG
+            st.write(body)
+
+            try:
+                send_graph_email(subject, body, uploaded_files)
+                st.success("Your report has been sent")
+            except Exception as e:
+                st.error(f"Error sending email: {e}")
+
+            # Close dialog
+            st.rerun()
+
+    with col2:
+        if st.button("Cancel", key="cancel_feedback_btn"):
+            st.rerun()
+
+
 from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
 from nya_basic_chat.rag.processor import get_supabase
 import uuid
@@ -72,6 +120,11 @@ with st.sidebar:
         except Exception:
             pass
         st.rerun()
+
+# Feedback modal control
+if st.sidebar.button("📣 Report or Request Feature"):
+    open_feedback_dialog()
+
 # -------- init session state --------
 if "history_loaded" not in st.session_state:
     build_history_user(USER_ID, THREAD_ID)
@@ -265,7 +318,8 @@ if prompt:
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
     # build user content
-    user_content = _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
+    user_content = [{"type": "text", "text": prompt}]
+    # _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
 
     # add user message
     # add user message to history
