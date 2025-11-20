@@ -84,7 +84,10 @@ def ingest_file(attachment_row):
 
         embeddings = embed_text([pc["chunk"] for pc in page_chunks])
         index = get_pinecone()
-        namespace = str(attachment_row["user_id"])
+        if attachment_row.get("category") == "global_perm":
+            namespace = "global"
+        else:
+            namespace = str(attachment_row["user_id"])
 
         upserts = []
         for i, (chunk, emb) in enumerate(zip(page_chunks, embeddings)):

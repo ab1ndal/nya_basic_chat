@@ -38,6 +38,8 @@ from nya_basic_chat.rag.processor import ingest_file
 
 load_dotenv()
 
+ADMIN_EMAILS = get_secret("ADMIN_EMAILS").split(",")
+
 
 @st.dialog("Submit Feedback or Feature Request")
 def open_feedback_dialog():
@@ -124,7 +126,7 @@ with st.sidebar:
         st.rerun()
 
 # Feedback modal control
-if st.sidebar.button("📣 Report or Request Feature"):
+if st.sidebar.button("📣 Report or Request Feature", disabled=True):
     open_feedback_dialog()
 
 # -------- init session state --------
@@ -200,6 +202,15 @@ with st.sidebar:
         help="Temp files are deleted after seven days",
     )
 
+    category = "personal_temp" if upload_mode == "Temp" else "personal_perm"
+    if st.session_state["user"]["email"] in ADMIN_EMAILS:
+        is_global = st.toggle("Make Global Document", value=False)
+    else:
+        is_global = False
+
+    if is_global:
+        category = "global_perm"
+
     if uploaded_files:
         sb = get_supabase()
         for f in uploaded_files:
@@ -219,6 +230,7 @@ with st.sidebar:
                     "storage_path": storage_path,
                     "file_type": f.type,
                     "is_temp": upload_mode == "Temp",
+                    "category": category,
                 }
             ).execute()
 

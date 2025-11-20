@@ -16,13 +16,23 @@ def retrieve_chunks(user_id, file_ids, prompt, top_k=8):
     query_emb = embed_query(prompt)
     namespace = str(user_id)
 
-    results = index.query(
+    personal_results = index.query(
         vector=query_emb,
         namespace=namespace,
         filter={"attachment_id": {"$in": file_ids}},
         top_k=top_k,
         include_metadata=True,
     )
+
+    global_results = index.query(
+        vector=query_emb,
+        namespace="global",
+        filter={"attachment_id": {"$in": file_ids}},
+        top_k=top_k,
+        include_metadata=True,
+    )
+
+    results = personal_results + global_results
 
     excerpts = []
     for match in results.matches:
