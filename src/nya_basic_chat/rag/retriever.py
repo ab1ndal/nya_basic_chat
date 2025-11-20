@@ -14,28 +14,41 @@ def retrieve_chunks(user_id, file_ids, prompt, top_k=8):
     index = pc.Index(get_secret("PINECONE_INDEX_NAME"))
 
     query_emb = embed_query(prompt)
-    namespace = str(user_id)
 
-    personal_results = index.query(
+    personal_perm = index.query(
         vector=query_emb,
-        namespace=namespace,
-        filter={"attachment_id": {"$in": file_ids}},
+        namespace=str(user_id),
+        filter={"category": "personal_perm"},
         top_k=top_k,
         include_metadata=True,
-    )
+    ).matches
 
-    global_results = index.query(
+    if file_ids:
+        personal_temp = index.query(
+            vector=query_emb,
+            namespace=str(user_id),
+            filter={
+                "attachment_id": {"$in": file_ids},
+                "category": "personal_temp",
+            },
+            top_k=top_k,
+            include_metadata=True,
+        ).matches
+    else:
+        personal_temp = []
+
+    global_perm = index.query(
         vector=query_emb,
         namespace="global",
-        filter={"attachment_id": {"$in": file_ids}},
+        filter={"category": "global_perm"},
         top_k=top_k,
         include_metadata=True,
-    )
+    ).matches
 
-    results = personal_results + global_results
+    results = personal_perm + personal_temp + global_perm
 
     excerpts = []
-    for match in results.matches:
+    for match in results:
         m = match.metadata
         page = m.get("page_number", "?")
         chunk = m.get("chunk_index", "?")
