@@ -15,43 +15,47 @@ import streamlit as st
 
 from dotenv import load_dotenv
 from nya_basic_chat.storage import (
-    save_uploads,
     load_prefs,
     save_prefs,
     build_history_user,
     append_user_message,
     clear_history_user,
 )
-from nya_basic_chat.ui import render_message_with_latex, preview_file
+from nya_basic_chat.ui import render_message_with_latex
 from nya_basic_chat.chat import _build_call_kwargs, run_once, run_stream
 from nya_basic_chat.config import get_secret
-from nya_basic_chat.helpers import _build_user_content
+
+# from nya_basic_chat.helpers import _build_user_content
 from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
 from nya_basic_chat.feedback import send_graph_email
+from nya_basic_chat.rag.inject import inject
+from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
+from nya_basic_chat.rag.processor import get_supabase
+import uuid
+import threading
+from nya_basic_chat.rag.processor import ingest_file
+
+load_dotenv()
+
+ADMIN_EMAILS = get_secret("ADMIN_EMAILS").split(",")
+
 
 @st.dialog("Submit Feedback or Feature Request")
 def open_feedback_dialog():
     st.subheader("Feedback Form")
 
     priority = st.selectbox(
-        "Priority",
-        ["Low", "Medium", "High", "Critical"],
-        index=1,
-        key="feedback_priority"
+        "Priority", ["Low", "Medium", "High", "Critical"], index=1, key="feedback_priority"
     )
 
-    message = st.text_area(
-        "Describe the issue or request",
-        height=150,
-        key="feedback_message"
-    )
+    message = st.text_area("Describe the issue or request", height=150, key="feedback_message")
 
     uploaded_files = st.file_uploader(
         "Attach screenshots or files",
         type=["png", "jpg", "jpeg", "pdf"],
         accept_multiple_files=True,
-        key="feedback_uploads"
+        key="feedback_uploads",
     )
 
     col1, col2 = st.columns(2)
@@ -64,7 +68,7 @@ def open_feedback_dialog():
                 f"Priority: {priority}\n\n"
                 f"Message:\n{message}\n"
             )
-            # DEBUG 
+            # DEBUG
             st.write(body)
 
             try:
@@ -80,8 +84,6 @@ def open_feedback_dialog():
         if st.button("Cancel", key="cancel_feedback_btn"):
             st.rerun()
 
-
-load_dotenv()
 
 st.set_page_config(page_title="NYA LightChat", page_icon=r"assets/NYA_logo.svg")
 
@@ -124,7 +126,7 @@ with st.sidebar:
         st.rerun()
 
 # Feedback modal control
-if st.sidebar.button("📣 Report or Request Feature"):
+if st.sidebar.button("📣 Report or Request Feature", disabled=True):
     open_feedback_dialog()
 
 # -------- init session state --------
@@ -175,17 +177,76 @@ with st.sidebar:
     )
 
     uploaded_files = st.file_uploader(
-        "Upload images or PDFs",
-        type=["png", "jpg", "jpeg", "webp", "jfif", "tif", "tiff", "bmp", "pdf"],
+        "Upload documents",
+        type=[
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "tif",
+            "tiff",
+            "bmp",
+            "pdf",
+            "docx",
+            "txt",
+            "md",
+            "xlsx",
+        ],
         accept_multiple_files=True,
         key=f"uploader_{st.session_state.uploader_key}",
     )
+    upload_mode = st.radio(
+        "Upload Mode",
+        ["Permanent", "Temp"],
+        index=0 if prefs.get("upload_mode", "Permanent") == "Permanent" else 1,
+        help="Temp files are deleted after seven days",
+    )
+
+    category = "personal_temp" if upload_mode == "Temp" else "personal_perm"
+    if st.session_state["user"]["email"] in ADMIN_EMAILS:
+        is_global = st.toggle("Make Global Document", value=False)
+    else:
+        is_global = False
+
+    if is_global:
+        category = "global_perm"
 
     if uploaded_files:
-        # Save now so they persist even if the app reruns
-        saved = save_uploads(uploaded_files)
-        st.session_state.pending_attachments.extend(saved)
-        # reset the uploader to avoid duplicate re-attachments on rerun
+        sb = get_supabase()
+        for f in uploaded_files:
+            # Build storage path
+            attachment_id = str(uuid.uuid4())
+            bucket = "Temp" if upload_mode == "Temp" else "Permanent"
+            storage_path = f"{USER_ID}/{attachment_id}/{f.name}"
+
+            sb.storage.from_(bucket).upload(storage_path, f.read())
+
+            # Insert DB row
+            sb.table("attachments").insert(
+                {
+                    "id": attachment_id,
+                    "user_id": USER_ID,
+                    "file_name": f.name,
+                    "storage_path": storage_path,
+                    "file_type": f.type,
+                    "is_temp": upload_mode == "Temp",
+                    "category": category,
+                }
+            ).execute()
+
+            # Create status row
+            sb.table("attachment_processing_status").insert(
+                {"attachment_id": attachment_id, "status": "pending"}
+            ).execute()
+
+            def bg_ingest(aid):
+                att = sb.table("attachments").select("*").eq("id", aid).single().execute().data
+                ingest_file(att)
+
+            threading.Thread(target=bg_ingest, args=(attachment_id,), daemon=True).start()
+
+            st.session_state.pending_attachments.append(attachment_id)
+
         st.session_state.uploader_key += 1
         st.rerun()
 
@@ -194,7 +255,7 @@ with st.sidebar:
         st.caption("Pending attachments (will be added to your next message):")
         for fm in st.session_state.pending_attachments:
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
     st.subheader("Settings")
     st.session_state.system = st.text_area("System prompt", value=st.session_state.system)
@@ -241,6 +302,7 @@ with st.sidebar:
         "max_completion_tokens": st.session_state.get("max_completion_tokens", 512),
         "streaming": st.session_state.get("streaming", True),
         "pdf_mode": st.session_state.get("pdf_mode", "text"),
+        "upload_mode": st.session_state.get("upload_mode", "Permanent"),
     }
     save_prefs(prefs_to_save)
 
@@ -258,6 +320,34 @@ with st.sidebar:
         st.session_state.history = []
         clear_history_user(USER_ID, THREAD_ID)
         st.success("History cleared.")
+        sb = get_supabase()
+        temp_atts = (
+            sb.table("attachments")
+            .select("*")
+            .eq("user_id", USER_ID)
+            .eq("is_temp", True)
+            .execute()
+            .data
+        )
+        from nya_basic_chat.rag.processor import get_pinecone
+
+        index = get_pinecone()
+        for att in temp_atts:
+            # delete from storage bucket
+            sb.storage.from_("Temp").remove([att["storage_path"]])
+
+            # delete Pinecone vectors
+            try:
+                index.delete(namespace=str(USER_ID), delete_all=True)
+            except Exception as e:
+                print(e)
+
+            # delete DB rows
+            sb.table("attachment_processing_status").delete().eq(
+                "attachment_id", att["id"]
+            ).execute()
+            sb.table("attachments").delete().eq("id", att["id"]).execute()
+
 
 # -------- render past messages --------
 st.title("🤖 NYA LightChat")
@@ -267,28 +357,39 @@ for msg in st.session_state.history:
         # TODO UPDATE THIS
         for fm in msg.get("attachments", []):
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
 # -------- input + response --------
 prompt = st.chat_input("Ask me something…")
 if prompt:
+    cleanup_expired_temp_files(USER_ID)
     # pull attachments
     attachments = st.session_state.pending_attachments if attach_to_next else []
 
+    system_prompt, final_user_prompt = inject(
+        system_prompt=st.session_state.system,
+        user_prompt=prompt,
+        user_id=USER_ID,
+        file_ids=attachments,
+    )
+
+    print("Result of inject:", system_prompt, final_user_prompt)
+
     # build user content
-    user_content = _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
+    user_content = [{"type": "text", "text": final_user_prompt}]
+    # _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
 
     # add user message
     # add user message to history
     user_msg = {"role": "user", "content": user_content, "attachments": attachments}
     st.session_state.history.append(user_msg)
-    append_user_message(USER_ID, "user", user_content, attachments, THREAD_ID)
+    append_user_message(USER_ID, "user", user_content, [], THREAD_ID)
 
     with st.chat_message("user"):
         st.markdown(prompt)
         for fm in attachments:
             with st.container(border=True):
-                preview_file(fm)
+                st.write(f"Attachment ID: {fm}")
 
     # clear pending after we used them
     st.session_state.pending_attachments = []
@@ -296,7 +397,7 @@ if prompt:
     with st.chat_message("assistant"):
         call_kwargs = _build_call_kwargs(
             content=user_content,
-            system=st.session_state.system,
+            system=system_prompt,
             model=st.session_state.model,
             max_completion_tokens=max_completion_tokens,
             verbosity=verbosity,
@@ -321,4 +422,4 @@ if prompt:
     st.session_state.history.append(
         {"role": "assistant", "content": answer_parts, "attachments": []}
     )
-    append_user_message(USER_ID, "assistant", answer_parts, attachments=[], thread_id=THREAD_ID)
+    append_user_message(USER_ID, "assistant", answer_parts, [], thread_id=THREAD_ID)

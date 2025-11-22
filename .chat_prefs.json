@@ -5,5 +5,6 @@
   "reasoning_effort": "minimal",
   "max_completion_tokens": 640,
   "streaming": true,
-  "pdf_mode": "text"
+  "pdf_mode": "text",
+  "upload_mode": "Permanent"
 }

@@ -253,10 +253,6 @@ def chat(
     """
 
     print("---------------")
-    print(content)
-    print("---------------")
-    print(sanitize_for_openai(content))
-    print("---------------")
     print(sanitize_for_openai(content) + [{"type": "text", "text": history_block}])
     print("---------------")
 
