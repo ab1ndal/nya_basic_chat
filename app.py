@@ -337,15 +337,17 @@ with st.sidebar:
             sb.storage.from_("Temp").remove([att["storage_path"]])
 
             # delete Pinecone vectors
-            prefix = f"{att['id']}_chunk_"
-            ids = [prefix + str(i) for i in range(200)]
-            index.delete(ids=ids, namespace=str(USER_ID))
+            try:
+                index.delete(namespace=str(USER_ID), delete_all=True)
+            except Exception as e:
+                print(e)
 
             # delete DB rows
-            sb.table("attachments").delete().eq("id", att["id"]).execute()
             sb.table("attachment_processing_status").delete().eq(
                 "attachment_id", att["id"]
             ).execute()
+            sb.table("attachments").delete().eq("id", att["id"]).execute()
+
 
 # -------- render past messages --------
 st.title("🤖 NYA LightChat")
@@ -371,6 +373,8 @@ if prompt:
         file_ids=attachments,
     )
 
+    print("Result of inject:", system_prompt, final_user_prompt)
+
     # build user content
     user_content = [{"type": "text", "text": final_user_prompt}]
     # _build_user_content(prompt, attachments=attachments, pdf_mode=pdf_mode)
@@ -393,7 +397,7 @@ if prompt:
     with st.chat_message("assistant"):
         call_kwargs = _build_call_kwargs(
             content=user_content,
-            system=st.session_state.system,
+            system=system_prompt,
             model=st.session_state.model,
             max_completion_tokens=max_completion_tokens,
             verbosity=verbosity,

@@ -38,8 +38,9 @@ def cleanup_expired_temp_files(user_id):
         sb.storage.from_(bucket).remove([r["storage_path"]])
 
         ns = str(user_id)
-        prefix = f"{r['id']}_chunk_"
-        index.delete(delete_all=False, namespace=ns, ids=[prefix + str(i) for i in range(200)])
-
-        sb.table("attachments").delete().eq("id", r["id"]).execute()
         sb.table("attachment_processing_status").delete().eq("attachment_id", r["id"]).execute()
+        sb.table("attachments").delete().eq("id", r["id"]).execute()
+        try:
+            index.delete(namespace=ns, delete_all=True)
+        except Exception as e:
+            print(e)

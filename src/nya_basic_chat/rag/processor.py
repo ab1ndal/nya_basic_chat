@@ -6,6 +6,7 @@ from unstructured.partition.auto import partition
 from unstructured.documents.elements import Text
 import tiktoken
 
+
 from nya_basic_chat.config import get_secret
 
 
