@@ -34,11 +34,20 @@ def cleanup_expired_temp_files(user_id):
             expired.append(r)
 
     for r in expired:
+        attachment_id = r["id"]
         ns = str(user_id)
+
+        chunk_rows = (
+            sb.table("chunks").select("id").eq("attachment_id", attachment_id).execute().data
+        )
+
+        chunk_ids = [c["id"] for c in chunk_rows]
+        if chunk_ids:
+            try:
+                index.delete(ids=chunk_ids, namespace=ns)
+            except Exception as e:
+                print("Error deleting Pinecone vectors:", e)
+
         sb.table("attachment_processing_status").delete().eq("attachment_id", r["id"]).execute()
         sb.table("chunks").delete().eq("attachment_id", r["id"]).execute()
         sb.table("attachments").delete().eq("id", r["id"]).execute()
-        try:
-            index.delete(namespace=ns, delete_all=True)
-        except Exception as e:
-            print(e)
