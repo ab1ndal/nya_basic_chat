@@ -5,9 +5,10 @@ from pinecone import Pinecone
 from unstructured.partition.auto import partition
 from unstructured.documents.elements import Text
 import tiktoken
-import json
 import re
 from nya_basic_chat.config import get_secret
+from pydantic import BaseModel, Field
+from typing import List, Literal
 
 
 def get_supabase():
@@ -19,33 +20,40 @@ def get_pinecone():
     return pc.Index(get_secret("PINECONE_INDEX_NAME"))
 
 
+class DocumentTypeResult(BaseModel):
+    doc_type: Literal[
+        "building_code", "engineering_report", "textbook", "specification", "drawing", "general_pdf"
+    ]
+    requires_section_parsing: bool = Field(
+        description="True if this document type contains numbered code sections"
+    )
+
+
+class SectionExtractionResult(BaseModel):
+    main_sections: List[str] = Field(default_factory=list)
+    reference_sections: List[str] = Field(default_factory=list)
+
+
 def classify_document_type(sample_text: str):
     client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
-    prompt = f"""
-    Classify this document into one of the following:
-    - building_code
-    - engineering_report
-    - textbook
-    - specification
-    - drawing
-    - general_pdf
 
-    Return JSON with keys:
-    - doc_type
-    - requires_section_parsing (true if building code)
+    schema = DocumentTypeResult.model_json_schema()
+
+    prompt = f"""
+    Classify the document based on the sample text.
+    Return ONLY a JSON object following the schema.
     
     Sample: {sample_text}
     """
 
     out = client.chat.completions.create(
-        model="gpt-5-nano", messages=[{"role": "user", "content": prompt}]
+        model="gpt-5-nano",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_schema", "json_schema": schema},
     )
 
-    try:
-        data = json.loads(out.choices[0].message.content)
-        return data["doc_type"], data["requires_section_parsing"]
-    except Exception:
-        return "general_pdf", False
+    parsed: DocumentTypeResult = DocumentTypeResult(**out.choices[0].message.parsed)
+    return parsed.doc_type, parsed.requires_section_parsing
 
 
 def extract_main_sections(chunk: str):
@@ -64,22 +72,22 @@ def extract_reference_sections(chunk: str, main_sections: list[str]):
 
 def fallback_extract_sections_with_llm(chunk: str):
     client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
+    schema = SectionExtractionResult.model_json_schema()
     prompt = f"""
-    Identify ALL building code section numbers in this text.
-    Return JSON with:
-    - main_sections: array of sections introduced or heading-level
-    - reference_sections: array of other sections referenced
-    Text: {chunk}
+    Identify ALL building code sections in this chunk.
+    - main_sections: sections introduced in this chunk (top-level headings)
+    - reference_sections: sections referenced but not introduced
+    Text:
+    {chunk}
     """
     out = client.chat.completions.create(
-        model="gpt-5-nano", messages=[{"role": "user", "content": prompt}]
+        model="gpt-5-nano",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_schema", "json_schema": schema},
     )
 
-    try:
-        data = json.loads(out.choices[0].message.content)
-        return data["main_sections"], data["reference_sections"]
-    except Exception:
-        return [], []
+    parsed: SectionExtractionResult = SectionExtractionResult(**out.choices[0].message.parsed)
+    return parsed.main_sections, parsed.reference_sections
 
 
 def extract_text(file_bytes):
