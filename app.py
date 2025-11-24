@@ -33,7 +33,6 @@ from nya_basic_chat.rag.inject import inject
 from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
 from nya_basic_chat.rag.processor import get_supabase
 import uuid
-import threading
 from nya_basic_chat.rag.processor import ingest_file
 
 load_dotenv()
@@ -214,43 +213,39 @@ with st.sidebar:
     if uploaded_files:
         sb = get_supabase()
         for f in uploaded_files:
-            # Build storage path
             attachment_id = str(uuid.uuid4())
-            bucket = "Temp" if upload_mode == "Temp" else "Permanent"
-            storage_path = f"{USER_ID}/{attachment_id}/{f.name}"
+            file_bytes = f.read()
+            sb.table("attachment_processing_status").insert(
+                {"attachment_id": attachment_id, "status": "pending"}
+            ).execute()
 
-            sb.storage.from_(bucket).upload(storage_path, f.read())
+            ingest_file(
+                {
+                    "id": attachment_id,
+                    "user_id": USER_ID,
+                    "file_name": f.name,
+                    "file_bytes": file_bytes,
+                    "is_temp": upload_mode == "Temp",
+                    "category": category,
+                }
+            )
 
-            # Insert DB row
             sb.table("attachments").insert(
                 {
                     "id": attachment_id,
                     "user_id": USER_ID,
                     "file_name": f.name,
-                    "storage_path": storage_path,
                     "file_type": f.type,
                     "is_temp": upload_mode == "Temp",
                     "category": category,
                 }
             ).execute()
 
-            # Create status row
-            sb.table("attachment_processing_status").insert(
-                {"attachment_id": attachment_id, "status": "pending"}
-            ).execute()
-
-            def bg_ingest(aid):
-                att = sb.table("attachments").select("*").eq("id", aid).single().execute().data
-                ingest_file(att)
-
-            threading.Thread(target=bg_ingest, args=(attachment_id,), daemon=True).start()
-
             st.session_state.pending_attachments.append(attachment_id)
 
         st.session_state.uploader_key += 1
         st.rerun()
 
-    # Show pending (to be attached to next message)
     if st.session_state.pending_attachments:
         st.caption("Pending attachments (will be added to your next message):")
         for fm in st.session_state.pending_attachments:
@@ -333,9 +328,6 @@ with st.sidebar:
 
         index = get_pinecone()
         for att in temp_atts:
-            # delete from storage bucket
-            sb.storage.from_("Temp").remove([att["storage_path"]])
-
             # delete Pinecone vectors
             try:
                 index.delete(namespace=str(USER_ID), delete_all=True)

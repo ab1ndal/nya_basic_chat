@@ -1,6 +1,7 @@
 from openai import OpenAI
 from pinecone import Pinecone
 from nya_basic_chat.config import get_secret
+from nya_basic_chat.storage import get_supabase
 
 
 def embed_query(text):
@@ -12,6 +13,7 @@ def embed_query(text):
 def retrieve_chunks(user_id, file_ids, prompt, top_k=8):
     pc = Pinecone(api_key=get_secret("PINECONE_API_KEY"))
     index = pc.Index(get_secret("PINECONE_INDEX_NAME"))
+    sb = get_supabase()
 
     query_emb = embed_query(prompt)
 
@@ -47,12 +49,22 @@ def retrieve_chunks(user_id, file_ids, prompt, top_k=8):
 
     results = personal_perm + personal_temp + global_perm
 
-    excerpts = []
-    for match in results:
-        m = match.metadata
-        page = m.get("page_number", "?")
-        chunk = m.get("chunk_index", "?")
-        file_name = m.get("file_name", "?")
-        excerpts.append(f"[{file_name} - page {page}, chunk {chunk}]\n{m['content']}")
+    chunk_ids = [match.id for match in results]
+    if len(chunk_ids) == 0:
+        return ""
 
-    return "\n\n".join(excerpts)
+    rows = sb.table("chunks").select("*").in_("id", chunk_ids).execute().data
+
+    # Build excerpt output
+    out = []
+    rows_by_id = {r["id"]: r for r in rows}
+
+    for m in results:
+        r = rows_by_id.get(m.id)
+        if not r:
+            continue
+        out.append(
+            f"Source: [{m.metadata.get('file_name')} - Page {r['page_number']}]\nContent:\n{r['content']}"
+        )
+
+    return "\n".join(out)

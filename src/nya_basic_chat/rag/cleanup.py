@@ -34,11 +34,9 @@ def cleanup_expired_temp_files(user_id):
             expired.append(r)
 
     for r in expired:
-        bucket = "Temp"
-        sb.storage.from_(bucket).remove([r["storage_path"]])
-
         ns = str(user_id)
         sb.table("attachment_processing_status").delete().eq("attachment_id", r["id"]).execute()
+        sb.table("chunks").delete().eq("attachment_id", r["id"]).execute()
         sb.table("attachments").delete().eq("id", r["id"]).execute()
         try:
             index.delete(namespace=ns, delete_all=True)
