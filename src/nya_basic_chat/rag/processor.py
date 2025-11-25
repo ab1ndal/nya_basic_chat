@@ -135,14 +135,19 @@ def ingest_file(attachment_row):
         doc_type, requires_parsing = classify_document_type(sample_text)
 
         page_chunks = []  # will hold dicts {page, chunk}
+        num_pages = len(elements)
 
-        for el in elements:
-            page = el["page"]
-            raw_text = el["text"]
-            chs = chunk_text(raw_text)
+        for i in range(num_pages):
+            first_page = elements[i]["page"]
+            merged_text = elements[i]["text"]
+
+            if i < num_pages - 1:
+                merged_text += "\n" + elements[i + 1]["text"]
+
+            chs = chunk_text(merged_text)
 
             for ch in chs:
-                page_chunks.append({"page": page, "chunk": ch})
+                page_chunks.append({"page": first_page, "chunk": ch})
 
         embeddings = embed_text([pc["chunk"] for pc in page_chunks])
         index = get_pinecone()
