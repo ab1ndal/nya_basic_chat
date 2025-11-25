@@ -145,7 +145,7 @@ def ingest_file(attachment_row):
 
         elements = extract_text(file_bytes)
 
-        sample_text = " ".join(el["text"] for el in elements[:5])
+        sample_text = elements[0]["text"][:2000]
         doc_type, requires_parsing = classify_document_type(sample_text)
 
         page_chunks = []  # will hold dicts {page, chunk}

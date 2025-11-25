@@ -210,7 +210,7 @@ with st.sidebar:
     if is_global:
         category = "global_perm"
 
-    if uploaded_files:
+    if st.button("Process Uploads"):
         sb = get_supabase()
         for f in uploaded_files:
             attachment_id = str(uuid.uuid4())
