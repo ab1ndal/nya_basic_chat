@@ -30,7 +30,7 @@ from nya_basic_chat.auth import sign_up_and_in
 from nya_basic_chat.reset_pass import handle_password_recovery
 from nya_basic_chat.feedback import send_graph_email
 from nya_basic_chat.rag.inject import inject
-from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files
+from nya_basic_chat.rag.cleanup import cleanup_expired_temp_files, clear_user_temp_files
 from nya_basic_chat.rag.processor import get_supabase
 import uuid
 from nya_basic_chat.rag.processor import ingest_file
@@ -313,33 +313,9 @@ with st.sidebar:
 
     if st.button("🧹 Clear history"):
         st.session_state.history = []
+        clear_user_temp_files(USER_ID)
         clear_history_user(USER_ID, THREAD_ID)
         st.success("History cleared.")
-        sb = get_supabase()
-        temp_atts = (
-            sb.table("attachments")
-            .select("*")
-            .eq("user_id", USER_ID)
-            .eq("is_temp", True)
-            .execute()
-            .data
-        )
-        from nya_basic_chat.rag.processor import get_pinecone
-
-        index = get_pinecone()
-        for att in temp_atts:
-            # delete Pinecone vectors
-            try:
-                index.delete(namespace=str(USER_ID), delete_all=True)
-            except Exception as e:
-                print(e)
-
-            # delete DB rows
-            sb.table("attachment_processing_status").delete().eq(
-                "attachment_id", att["id"]
-            ).execute()
-            sb.table("attachments").delete().eq("id", att["id"]).execute()
-
 
 # -------- render past messages --------
 st.title("🤖 NYA LightChat")
