@@ -217,9 +217,9 @@ def ingest_file(attachment_row):
             )
 
         # batch upsert to Pinecone
-        # Pinecone has a limit of 500 vectors per upsert
-        for i in range(0, len(pinecone_vectors), 500):
-            index.upsert(vectors=pinecone_vectors[i : i + 500], namespace=namespace)
+        # Pinecone has a limit of 50 vectors per upsert
+        for i in range(0, len(pinecone_vectors), 50):
+            index.upsert(vectors=pinecone_vectors[i : i + 50], namespace=namespace)
 
         sb.table("attachment_processing_status").upsert(
             {
