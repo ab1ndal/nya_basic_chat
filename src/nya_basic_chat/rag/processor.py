@@ -10,6 +10,7 @@ from nya_basic_chat.config import get_secret
 from pydantic import BaseModel, Field
 from typing import List, Literal
 import io
+import json
 
 
 def get_supabase():
@@ -50,10 +51,15 @@ def classify_document_type(sample_text: str):
     out = client.chat.completions.create(
         model="gpt-5-nano",
         messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_schema", "json_schema": schema},
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "doc_type_result", "schema": schema},
+        },
     )
 
-    parsed: DocumentTypeResult = DocumentTypeResult(**out.choices[0].message.parsed)
+    raw = out.choices[0].message.content
+    parsed_json = json.loads(raw)
+    parsed: DocumentTypeResult = DocumentTypeResult(**parsed_json)
     return parsed.doc_type, parsed.requires_section_parsing
 
 
@@ -84,10 +90,15 @@ def fallback_extract_sections_with_llm(chunk: str):
     out = client.chat.completions.create(
         model="gpt-5-nano",
         messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_schema", "json_schema": schema},
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "doc_sections", "schema": schema},
+        },
     )
 
-    parsed: SectionExtractionResult = SectionExtractionResult(**out.choices[0].message.parsed)
+    raw = out.choices[0].message.content
+    parsed_json = json.loads(raw)
+    parsed: SectionExtractionResult = SectionExtractionResult(**parsed_json)
     return parsed.main_sections, parsed.reference_sections
 
 
