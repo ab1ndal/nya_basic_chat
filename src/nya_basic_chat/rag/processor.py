@@ -9,6 +9,7 @@ import re
 from nya_basic_chat.config import get_secret
 from pydantic import BaseModel, Field
 from typing import List, Literal
+import io
 
 
 def get_supabase():
@@ -91,6 +92,8 @@ def fallback_extract_sections_with_llm(chunk: str):
 
 
 def extract_text(file_bytes):
+    if isinstance(file_bytes, bytes):
+        file_bytes = io.BytesIO(file_bytes)
     elements = partition(file=file_bytes)
     out = []
     for el in elements:
