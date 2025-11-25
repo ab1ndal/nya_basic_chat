@@ -215,6 +215,18 @@ with st.sidebar:
         for f in uploaded_files:
             attachment_id = str(uuid.uuid4())
             file_bytes = f.read()
+
+            sb.table("attachments").insert(
+                {
+                    "id": attachment_id,
+                    "user_id": USER_ID,
+                    "file_name": f.name,
+                    "file_type": f.type,
+                    "is_temp": upload_mode == "Temp",
+                    "category": category,
+                }
+            ).execute()
+
             sb.table("attachment_processing_status").insert(
                 {"attachment_id": attachment_id, "status": "pending"}
             ).execute()
@@ -229,17 +241,6 @@ with st.sidebar:
                     "category": category,
                 }
             )
-
-            sb.table("attachments").insert(
-                {
-                    "id": attachment_id,
-                    "user_id": USER_ID,
-                    "file_name": f.name,
-                    "file_type": f.type,
-                    "is_temp": upload_mode == "Temp",
-                    "category": category,
-                }
-            ).execute()
 
             st.session_state.pending_attachments.append(attachment_id)
 

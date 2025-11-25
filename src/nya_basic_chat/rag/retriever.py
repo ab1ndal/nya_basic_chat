@@ -1,7 +1,7 @@
 from openai import OpenAI
 from pinecone import Pinecone
 from nya_basic_chat.config import get_secret
-from nya_basic_chat.storage import get_supabase
+from nya_basic_chat.rag.processor import get_supabase
 
 
 def embed_query(text):
