@@ -2,7 +2,6 @@ from datetime import datetime
 from supabase import create_client
 from openai import OpenAI
 from pinecone import Pinecone
-from unstructured.documents.elements import Text
 import tiktoken
 import re
 from nya_basic_chat.config import get_secret
@@ -106,6 +105,7 @@ def extract_text(file_bytes):
         file_bytes = io.BytesIO(file_bytes)
 
     from unstructured.partition.pdf import partition_pdf
+    from unstructured.documents.elements import Text
 
     elements = partition_pdf(
         file=file_bytes, infer_table_structure=False, extract_images=False, strategy="fast"
