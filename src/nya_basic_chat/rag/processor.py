@@ -2,7 +2,7 @@ from datetime import datetime
 from supabase import create_client
 from openai import OpenAI
 from pinecone import Pinecone
-from unstructured.partition.auto import partition
+from unstructured.partition.pdf import partition_pdf
 from unstructured.documents.elements import Text
 import tiktoken
 import re
@@ -105,7 +105,7 @@ def fallback_extract_sections_with_llm(chunk: str):
 def extract_text(file_bytes):
     if isinstance(file_bytes, bytes):
         file_bytes = io.BytesIO(file_bytes)
-    elements = partition(file=file_bytes)
+    elements = partition_pdf(file=file_bytes, extract_images=False)
     out = []
     for el in elements:
         if isinstance(el, Text):
