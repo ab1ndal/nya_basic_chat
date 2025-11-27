@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 import io
 import json
+from PyPDF2 import PdfReader
 
 
 def get_supabase():
@@ -104,21 +105,13 @@ def extract_text(file_bytes):
     if isinstance(file_bytes, bytes):
         file_bytes = io.BytesIO(file_bytes)
 
-    from unstructured.partition.pdf import partition_pdf
-    from unstructured.documents.elements import Text
-
-    elements = partition_pdf(
-        file=file_bytes, infer_table_structure=False, extract_images=False, strategy="fast"
-    )
+    reader = PdfReader(file_bytes)
     out = []
-    for el in elements:
-        if isinstance(el, Text):
-            out.append(
-                {
-                    "text": el.text.strip(),
-                    "page": getattr(el.metadata, "page_number", None),
-                }
-            )
+
+    for page_number, page in enumerate(reader.pages, start=1):
+        text = page.extract_text() or ""
+        out.append({"page": page_number, "text": text.strip()})
+
     return out
 
 
